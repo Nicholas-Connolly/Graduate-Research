@@ -984,7 +984,7 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 	
 	//DEBUG
 	/*
-	printf("\n endpointConnectionsEcorners: \n\t [");
+	printf("\n endpointConnectionsCorners: Line 987\n\t [");
 	for(int i=0; i<4; i++){
 		printf(" %d ", endpointConnectionsCorners[0][i]);
 	}
@@ -1012,10 +1012,14 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 	//For indexing purposes, each chain will share the un-chained indexing of the first crossing.
 	//After constructing the refinement, we will go through and reindex by chains (that is, by integer subtangles).
 	
+	//Variable to store the index of the first crossing in a chain, used as the integer subtangle index; to be updated later.
+	int currentIntegerSubtangleIndex;
+	
 	for(int i=0; i<numOfSubtanglesInput; i++){
 		
-		//Each iteration, increment the number of refined subtangles.
+		//Each iteration, increment the number of refined subtangles, and specify the current integer subtangle index.
 		subtanglesRefined++;
+		currentIntegerSubtangleIndex=i;
 		
 		for(int j=0; j<5; j++){
 			integerSubtangleConnectionsEMlocal[subtanglesRefined-1][0][j]=integerSubtangleConnectionsEM[i][0][j];
@@ -1030,9 +1034,10 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 		//Note that the former case is accounted for in the second case, which can be elminated by checking against the barsInput array.
 		//Thanks to forward chaining, it is sufficient to check only that the current crossing does not precede an endpoint.
 		//To check this, we compare the current crossing index i+1 with the last crossing index (numOfSubtangles) and the crossing index before end of the first strand (gaussInput[barsInput[0]-1]).
-		if( (integerSubtangleConnectionsEM[i][0][2] == integerSubtangleConnectionsEM[i][0][3]) && (i+1<numOfSubtangles) && ((i+1) != abs(gaussInput[barsInput[0]-1]) ) ){
+		//UPDATE-- Above analysis is incorrect; check for endpoint chaining elsewhere.
+		if( (integerSubtangleConnectionsEM[i][0][2] == integerSubtangleConnectionsEM[i][0][3]) && (i+1<numOfSubtangles) ){
 			chainType=1;
-		} else if ( (integerSubtangleConnectionsEM[i][0][2] == integerSubtangleConnectionsEM[i][0][4]) && (i+1<numOfSubtangles) && ((i+1) != abs(gaussInput[barsInput[0]-1]) ) ){
+		} else if ( (integerSubtangleConnectionsEM[i][0][2] == integerSubtangleConnectionsEM[i][0][4]) && (i+1<numOfSubtangles) ){
 			chainType=-1;
 		} else {
 			//If neither of the above happens, no forward chaining is possible for this crossing.
@@ -1067,17 +1072,33 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 		
 		
 		//It is also possible that and endpoint crossing gets chained into an integer subtangle. In this case, we need to update the endpointConnectionsCorners array to reflect this.
-		//This only matters if there is chaining, and only if chaining an endpoint crossing. The updated index is the first crossing in the chain (i+1 in this case).
+		//This only matters if there is chaining, and only if chaining an endpoint crossing. The updated index is the first crossing in the chain (currentIntegerSubtangleIndex in this case).
 		//Since both chain types involve twisting corner B, the chained crossing index is the index of the crossing connected to this corner.
 		//For integer subtangle chaining, the corner connected to the endpoint does NOT change (unless I'm mistaken, but future me can deal with that headache).
+		//ERROR TO FIX--updating  the endpoint crossing indices here will throw off the later indexing, update endpoint labels while udpating all of the crossing indices?
+		/*
 		if( chainType != 0 ){
 			for(int j=0; j<4; j++){
-				if( (endpointConnectionsCorners[0][j]-1) == integerSubtangleConnectionsEM[i][0][2] ){
-					endpointConnectionsCorners[0][j] = (i+1);
+				if( (endpointConnectionsCorners[0][j]) == integerSubtangleConnectionsEM[i][0][2] ){
+					endpointConnectionsCorners[0][j] = (currentIntegerSubtangleIndex+1);
+					printf("\n corner index update at 1088");	
 				}
 			}
 		}
+		*/
 		
+		//DEBUG
+		/*
+		printf("\n endpointConnectionsCorners: Line 1088 Check \n\t [");
+		for(int i=0; i<4; i++){
+			printf(" %d ", endpointConnectionsCorners[0][i]);
+		}
+		printf("] \n\t [");
+		for(int i=0; i<4; i++){
+			printf(" %d ", endpointConnectionsCorners[1][i]);
+		}
+		printf("]\n");
+		*/
 		
 		
 		//Update integerSubtangleParametersEM[][1] to store the chainType, which denotes the twist axis.
@@ -1199,6 +1220,8 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 		//If chaining is possible, continue to check for possible crossings to add to the chain.
 		if( chainType == 1 ){
 			
+			currentIntegerSubtangleIndex=i;
+			
 			//If the chaining condition is still satisfied, keep iterating.
 			while( chainType!=0 ){
 				
@@ -1222,7 +1245,7 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 				//Now check if the next crossing can be added to the chain with the same chain type (b=c).
 				//Also check that we haven't run out of possible crossings to chain.
 				//ALSO check that this would not cause the subtangle to chain across endpoints.
-				if( (integerSubtangleConnectionsEM[i][0][2] == integerSubtangleConnectionsEM[i][0][3]) && (i+1<numOfSubtangles) && ((i+1) != abs(gaussInput[barsInput[0]-1])) ){
+				if( (integerSubtangleConnectionsEM[i][0][2] == integerSubtangleConnectionsEM[i][0][3]) && (i+1<numOfSubtangles) ){
 					
 					//Set a boolean to indicate that further chaining is possible, but check that this doesn't chain over endpoints.
 					furtherChainingPossible=true;
@@ -1235,7 +1258,7 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 							if( (endpointConnectionsCorners[0][j]-1) == i ){
 								if( (endpointConnectionsCorners[1][j]==2) || (endpointConnectionsCorners[1][j]==3) ){
 									//If crossing i is adjacent to an endpoint, and if B-C twisting occurs, and if the endpoint corner is B or C, then this twisting is over an endpoint and not allowed.
-									//Set the endpoint chaining boolean to true.
+									//Set the endpoint chaining boolean to false.
 									furtherChainingPossible=false;
 								}
 							}
@@ -1243,16 +1266,32 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 					}
 					
 					//It is also possible that an endpoint crossing gets chained into an integer subtangle. In this case, we need to update the endpointConnectionsCorners array to reflect this.
-					//This only matters if there is chaining, and only if chaining an endpoint crossing. The updated index is the first crossing in the chain (i+1 in this case).
+					//This only matters if there is chaining, and only if chaining an endpoint crossing. The updated index is the first crossing in the chain (i+1 in this case). ERROR--NEED TO DEBUG
 					//Since both chain types involve twisting corner B, the chained crossing index is the index of the crossing connected to this corner.
 					//For integer subtangle chaining, the corner connected to the endpoint does NOT change (unless I'm mistaken, but future me can deal with that headache).
 					if( furtherChainingPossible==true ){
+						/*
 						for(int j=0; j<4; j++){
-							if( (endpointConnectionsCorners[0][j]-1) == integerSubtangleConnectionsEM[i][0][2] ){
-								endpointConnectionsCorners[0][j] = (i+1);
+							if( (endpointConnectionsCorners[0][j]) == integerSubtangleConnectionsEM[i][0][2] ){
+								endpointConnectionsCorners[0][j] = (currentIntegerSubtangleIndex+1);
+								printf("\n corner index update at 1281");
 							}
 						}
+						*/
 						chainType++;
+						
+						//DEBUG
+						/*
+						printf("\n endpointConnectionsCorners: Line 1281 Check \n\t [");
+						for(int i=0; i<4; i++){
+							printf(" %d ", endpointConnectionsCorners[0][i]);
+						}
+						printf("] \n\t [");
+						for(int i=0; i<4; i++){
+							printf(" %d ", endpointConnectionsCorners[1][i]);
+						}
+						printf("]\n");
+						*/
 					}
 					
 				} else {
@@ -1297,7 +1336,7 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 				//Now check if the next crossing can be added to the chain with the same chain type (b=d).
 				//Also check that we haven't run out of possible crossings to chain.
 				//ALSO check that this would not cause the subtangle to chain across endpoints.
-				if( (integerSubtangleConnectionsEM[i][0][2] == integerSubtangleConnectionsEM[i][0][4]) && (i+1<numOfSubtangles) && ((i+1) != abs(gaussInput[barsInput[0]-1])) ){
+				if( (integerSubtangleConnectionsEM[i][0][2] == integerSubtangleConnectionsEM[i][0][4]) && (i+1<numOfSubtangles) ){
 					
 					//Set a boolean to indicate that further chaining is possible, but check that this doesn't chain over endpoints.
 					furtherChainingPossible=true;
@@ -1321,14 +1360,18 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 					//This only matters if there is chaining, and only if chaining an endpoint crossing. The updated index is the first crossing in the chain (i+1 in this case).
 					//Since both chain types involve twisting corner B, the chained crossing index is the index of the crossing connected to this corner.
 					//For integer subtangle chaining, the corner connected to the endpoint does NOT change (unless I'm mistaken, but future me can deal with that headache).
+					//ERROR TO FIX
 					if( furtherChainingPossible==true ){
+						/*
 						for(int j=0; j<4; j++){
 							if( (endpointConnectionsCorners[0][j]-1) == integerSubtangleConnectionsEM[i][0][2] ){
 								endpointConnectionsCorners[0][j] = (i+1);
 							}
 						}
+						*/
 						chainType--;
 					}
+					
 					
 				
 				} else {
@@ -1366,6 +1409,12 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 		//If S2 is not reversed, the sign of q matches the sign of the crossings; otherwise, the sign of q is opposite the sign of the crossings.
 		//Effectively, this means that q matches the sign of the product of integerSubtangleParametersEM[] entries 0 and 6.
 		if( ( integerSubtangleParametersEM[subtanglesRefined-1][0] * integerSubtangleParametersEM[subtanglesRefined-1][6] ) < 0 ){
+			integerSubtangleParametersEM[subtanglesRefined-1][4] = -1*(integerSubtangleParametersEM[subtanglesRefined-1][4]);
+		}
+		//SPECIAL CASE: 
+		//When there are an even number of vertical twists, the sign must be changed one more time to obtain the correct sign of the shape of that subtangle (due to how products with parity 1 tangles change signs).
+		//Note that this will only happen when q is divisible by 2 (as q is defined above, integerSubtangleParametersEM[4]).
+		if( (integerSubtangleParametersEM[subtanglesRefined-1][4] % 2) == 0 ){
 			integerSubtangleParametersEM[subtanglesRefined-1][4] = -1*(integerSubtangleParametersEM[subtanglesRefined-1][4]);
 		}
 		
@@ -1420,7 +1469,7 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 		//In principle, we will "collapse" non-matching old indices along each chain to the index of the first crossing.
 		//The the currentOldIndex is the first index of the current chain.
 		currentOldIndex=oldIntegerSubtangleIndex[i];
-		//The nextOldIndex is one less than the first index of the next chain.
+		//The nextOldIndex is one less than the first index of the next chain (equivalently, this is the old Gauss index of the last crossing in the chain, which connected chains will reference).
 		//As an artifact of the chaining construction, non-matching indices in a chain can only take this value
 		if( (i+1) < subtanglesRefined ){
 			nextOldIndex = (oldIntegerSubtangleIndex[i+1] - 1 );
@@ -1436,7 +1485,26 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 					integerSubtangleConnectionsEMlocal[j][0][k] = currentOldIndex;
 				}	
 			}	
-		}	
+		}
+		//Repeat this check for references to endpoint corners; if references are made to nextOldIndex, update these to currentOldIndex.
+		for(int j=0; j<4; j++){
+			if( endpointConnectionsCorners[0][j] == nextOldIndex ){
+				endpointConnectionsCorners[0][j] = currentOldIndex;
+			}
+		}
+		//DEBUG
+		/*
+		printf("\n endpointConnectionsCorners: Line 1497\n\t [");
+		for(int i=0; i<4; i++){
+			printf(" %d ", endpointConnectionsCorners[0][i]);
+		}
+		printf("] \n\t [");
+		for(int i=0; i<4; i++){
+			printf(" %d ", endpointConnectionsCorners[1][i]);
+		}
+		printf("]\n");
+		*/
+		
 	}
 	//DEBUG
 	/*
@@ -1454,6 +1522,26 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 			}
 		}
 	}
+	//Also update the references to the endpoint corners.
+	for(int j=0; j<4; j++){
+		for(int k=0; k<subtanglesRefined; k++){
+			if( endpointConnectionsCorners[0][j] == oldIntegerSubtangleIndex[k] ){
+				endpointConnectionsCorners[0][j] = (k+1);
+			}
+		}
+	}
+	//DEBUG
+	/*
+	printf("\n endpointConnectionsCorners: Line 1535\n\t [");
+	for(int i=0; i<4; i++){
+		printf(" %d ", endpointConnectionsCorners[0][i]);
+	}
+	printf("] \n\t [");
+	for(int i=0; i<4; i++){
+		printf(" %d ", endpointConnectionsCorners[1][i]);
+	}
+	printf("]\n");
+	*/
 	
 	//Originally, entry [i][1][0] in the EM array referred to the sign of the crossing encountered.
 	//Modify this entry in the integer subtangle EM array so that its magnitude is the number of crossings in the subtangle, and it's sign denotes the sign of the crossings.
@@ -2830,8 +2918,12 @@ void buildRationalSubtangleEMCode(int &numOfSubtangles, int integerSubtangleConn
 		rationalSubtangleParametersEM[i][5]=integerSubtangleParametersEM[i][5];
 		//6: S2 direction:
 		rationalSubtangleParametersEM[i][6]=integerSubtangleParametersEM[i][6];
-		//7: overall subtangle sign, as determined by shape: the sign of the crossing type, flipped depending on if S2 is reveresed.
-		rationalSubtangleParametersEM[i][7] = ( integerSubtangleParametersEM[i][6] * (integerSubtangleParametersEM[i][0]/abs(integerSubtangleParametersEM[i][0])) );
+		//7: overall subtangle sign, as determined by shape: this is exactly the sign of q (integerSubtangleParametersEM[i][4]), regarding the integer tangle as a rational tangle.
+		if( integerSubtangleParametersEM[i][4] < 0 ){
+			rationalSubtangleParametersEM[i][7] = -1;
+		} else {
+			rationalSubtangleParametersEM[i][7] = 1;
+		}
 		//printf("\n\t DEBUG sign of rational subtangle shape: %d", rationalSubtangleParametersEM[i][7]);
 	}
 	
@@ -3277,6 +3369,8 @@ void buildGeneralizedEMCode(int *gaussInput, int *orientedSignGaussInput, int *b
 
 int main(){
 	
+	//List of test inputs.
+	
 	int numOfCrossings1 = 3;
 	int gauss1[2*numOfCrossings1] = {1,-2,3,-1,2,-3};
 	int bars1[2] = {3,6};
@@ -3356,7 +3450,7 @@ int main(){
 	int bars9[2]={6,10};
 	int orientedSignGauss9[2*numOfCrossings9] = {1,1,-1,-1,1,1,-1,-1,1,1};
 	
-	buildGeneralizedEMCode(gauss9,orientedSignGauss9,bars9,numOfCrossings9,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	//buildGeneralizedEMCode(gauss9,orientedSignGauss9,bars9,numOfCrossings9,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
 	
 	
 	//4 crossing rational tangle (non-canonical)
@@ -3366,6 +3460,110 @@ int main(){
 	int orientedSignGauss10[2*numOfCrossings10] = {-1,-1,1,1,-1,-1,1,1};
 	
 	//buildGeneralizedEMCode(gauss10,orientedSignGauss10,bars10,numOfCrossings10,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
+	
+	
+	//6 crossing Montesinos tangle for comp
+	int numOfCrossings11 = 6;
+	int gauss11[2*numOfCrossings11] = {-1,2,-3,4,-5,6,-4,5,-6,1,-2,3};
+	int bars11[2]={6,12};
+	int orientedSignGauss11[2*numOfCrossings11] = {1,1,1,1,1,1,1,1,1,1,1,1};
+	
+	//buildGeneralizedEMCode(gauss11,orientedSignGauss11,bars11,numOfCrossings11,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
+	//6 crossing Rational tangle for comp
+	int numOfCrossings12 = 6;
+	int gauss12[2*numOfCrossings12] = {-1,2,-3,4,-5,6,-6,5,-4,1,-2,3};
+	int bars12[2]={6,12};
+	int orientedSignGauss12[2*numOfCrossings12] = {1,1,1,1,1,1,1,1,1,1,1,1};
+	
+	//buildGeneralizedEMCode(gauss12,orientedSignGauss12,bars12,numOfCrossings12,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
+	//12 crossing Montesinos tangle for comp
+	int numOfCrossings13 = 12;
+	int gauss13[2*numOfCrossings13] = {1,-2,3,-4,5,-6,7,-8,9,-9,8,-7,10,-11,12,-3,2,-1,6,-5,4,-12,11,-10};
+	int bars13[2]={9,24};
+	int orientedSignGauss13[2*numOfCrossings13] = {1,1,1,1,1,1,-1,-1,-1,-1,-1,-1,1,1,1,1,1,1,1,1,1,1,1,1};
+	
+	//buildGeneralizedEMCode(gauss13,orientedSignGauss13,bars13,numOfCrossings13,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
+	//10 crossing Algebraic tangle for comp
+	//KNOWN BUG-THIRD SUBTANLGE HAS SIGN ERROR? ----- FIXED, there was an issue with how rational_q was defined in the special case of an even number of vertial twists
+	int numOfCrossings14 = 10;
+	int gauss14[2*numOfCrossings14] = {-1,2,-3,4,-5,1,-2,3,-6,7,-8,9,-10,6,-7,8,-9,10,-4,5};
+	int bars14[2]={10,20};
+	int orientedSignGauss14[2*numOfCrossings14] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+	
+	//buildGeneralizedEMCode(gauss14,orientedSignGauss14,bars14,numOfCrossings14,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
+	//11 crossing Non-Algebraic tangle for comp
+	//KNOWN BUG-CHAINING ACROSS ENDPOINTS ------ FIXED, there were multiple issues with labeling corner crossings in the integerEM function
+	int numOfCrossings15 = 11;
+	int gauss15[2*numOfCrossings15] = {-1,2,-3,4,-5,6,-7,8,-2,1,-9,10,-11,7,-6,5,-4,3,-8,11,-10,9};
+	int bars15[2]={15,22};
+	int orientedSignGauss15[2*numOfCrossings15] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+	
+	//buildGeneralizedEMCode(gauss15,orientedSignGauss15,bars15,numOfCrossings15,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
+	//9 crossing Montesinos tangle
+	int numOfCrossings16 = 9;
+	int gauss16[2*numOfCrossings16] = {-1,2,-3,4,-5,6,-7,5,-4,3,-6,7,-8,9,-2,1,-9,8};
+	int bars16[2]={7,18};
+	int orientedSignGauss16[2*numOfCrossings16] = {1,1,1,1,1,1,1,1,1,1,1,1,-1,-1,1,1,-1,-1};
+	
+	//buildGeneralizedEMCode(gauss16,orientedSignGauss16,bars16,numOfCrossings16,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
+	//8 crossing non-canonical Montesinos tangle
+	int numOfCrossings17 = 8;
+	int gauss17[2*numOfCrossings17] = {-1,2,-3,4,-2,1,-5,6,-7,8,-6,5,-8,7,-4,3};
+	int bars17[2]={8,16};
+	int orientedSignGauss17[2*numOfCrossings17] = {-1,-1,1,1,-1,-1,1,1,-1,-1,1,1,-1,-1,1,1};
+	
+	buildGeneralizedEMCode(gauss17,orientedSignGauss17,bars17,numOfCrossings17,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
+	//8 crossing canonical Montesinos tangle (compare with above--rational components are equivalent)
+	int numOfCrossings18 = 8;
+	int gauss18[2*numOfCrossings18] = {-1,2,-3,4,-5,6,-4,3,-6,5,-7,8,-2,1,-8,7};
+	int bars18[2]={4,16};
+	int orientedSignGauss18[2*numOfCrossings18] = {1,1,1,1,-1,-1,1,1,-1,-1,-1,-1,1,1,-1,-1};
+	
+	//buildGeneralizedEMCode(gauss18,orientedSignGauss18,bars18,numOfCrossings18,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
+	//8 crossing Montesinos tangle with a rotated rational component (compare with above two)
+	int numOfCrossings19 = 8;
+	int gauss19[2*numOfCrossings19] = {-1,2,-3,4,-5,6,-2,1,-6,5,-7,8,-4,3,-8,7};
+	int bars19[2]={10,16};
+	int orientedSignGauss19[2*numOfCrossings19] = {1,1,-1,-1,-1,-1,1,1,-1,-1,1,1,-1,-1,1,1};
+	
+	buildGeneralizedEMCode(gauss19,orientedSignGauss19,bars19,numOfCrossings19,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
+	//10 crossing Montesinos tangle with a rotated rational component--non-canonical (compare with above three)
+	int numOfCrossings20 = 10;
+	int gauss20[2*numOfCrossings20] = {-1,2,-3,4,-5,6,-7,8,-2,1,-8,7,-9,10,-6,5,-10,9,-4,3};
+	int bars20[2]={12,20};
+	int orientedSignGauss20[2*numOfCrossings20] = {1,1,-1,-1,-1,-1,-1,-1,1,1,-1,-1,1,1,-1,-1,1,1,-1,-1};
+	
+	buildGeneralizedEMCode(gauss20,orientedSignGauss20,bars20,numOfCrossings20,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
+	//10 crossing generalized Montesinos tangle--remove exterior twists before classifying?
+	
+	int numOfCrossings21 = 10;
+	int gauss21[2*numOfCrossings21] = {-1,2,-3,4,-5,6,-7,8,-6,5,-9,3,-4,9,-10,1,-2,10,-8,7};
+	int bars21[2]={6,20};
+	int orientedSignGauss21[2*numOfCrossings21] = {-1,-1,-1,-1,1,1,-1,-1,1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
+	
+	buildGeneralizedEMCode(gauss21,orientedSignGauss21,bars21,numOfCrossings21,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
 	
 	
 }
