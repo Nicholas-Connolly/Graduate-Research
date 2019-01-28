@@ -17,8 +17,6 @@
 //Global variables:
 int gaussCrossingSigns[2*MAXNN];
 
-//Does declaring an array of strings work in the same way?
-//string ewingMillett[30][5];
 int connectionsEM[2*MAXNN][2][5];
 
 int numOfSubtangles;
@@ -348,8 +346,9 @@ void printAlgebraicComponentsParameters(int numOfSubtanglesInput, int numOfStage
 			for(int k=0; k<10; k++){
 				printf(" %d \t", algebraicComponentsParameters[i][j][k]);
 			}
-			printf("]\n\n");
+			printf("]\n");
 		}
+		printf("\n");
 	}
 	
 }
@@ -385,9 +384,10 @@ This function is called by:
 
 void printArrayEM(int numOfCrossingsInput, int connectionsEMinput[][2][5]){
 	
-	printf("\n Ewing Millett Code Arrays: \n");
+	//Formerly referred to as the "Ewing Millett Code Arrays".
+	printf("\n Planar Diagram Connections Arrays: \n");
 	for(int i=0; i<numOfCrossingsInput; i++){
-		printf("\n [ %d ]", i+1);
+		printf("\n [%d]", i+1);
 		printf(" \t [ %d \t| ", connectionsEMinput[i][0][0]);
 		for(int j=1; j<5; j++){
 			printf(" %d ", connectionsEMinput[i][0][j]);
@@ -572,7 +572,7 @@ void printPrettyRationalSubtangleEM(int numOfSubtanglesInput, int rationalSubtan
 			} else if ( cornerLetter == 4 ){
 				printf("D ");
 			} else if ( cornerLetter == 0 ){
-				printf("E ");
+				printf("e ");
 			} else {
 				//If none of the above happens, there is a some bug somewhere. Flag this "z" so it can identified at a glance.
 				printf("z ");
@@ -654,7 +654,7 @@ void printCompassRationalSubtangleEM(int numOfSubtanglesInput, int rationalSubta
 			} else if ( cornerLetter == 4 ){
 				printf("SW\t");
 			} else if( cornerLetter == 0 ){
-				printf("EP\t");			
+				printf("ep\t");			
 			} else {
 				//If none of the above happens, there is a some bug somewhere. Flag this "z" so it can identified at a glance.
 				printf("z\t");
@@ -4194,10 +4194,10 @@ int determineJoinedConfiguration(int firstConfig, int secondConfig){
 			tupleConfigs[i][2]=1;
 			tupleConfigs[i][3]=1;
 		} else if( inputConfigs[i] == 8 ){
-			tupleConfigs[i][0]=0;
-			tupleConfigs[i][1]=1;
-			tupleConfigs[i][2]=1;
-			tupleConfigs[i][3]=0;
+			tupleConfigs[i][0]=1;
+			tupleConfigs[i][1]=0;
+			tupleConfigs[i][2]=0;
+			tupleConfigs[i][3]=1;
 		} else {
 			//There shouldn't be any other possibilities, but if one of the configurations is not accounted for above, just return 0 (no canonical configuration).
 			return 0;
@@ -4359,6 +4359,9 @@ int determineJoinedParity(int joinType, int firstParityInput, int secondParityIn
 		}
 	}
 	
+	//Debug
+	//printf("\n DEBUG FLAG: Line %d \n first parity = %d, second parity = %d, new parity = %d, second parity input = %d, SCR = %d", __LINE__, firstParity, secondParity, parityJoin, secondParityInput, secondComponentRotations);
+	
 	//Return the whatever the parityJoin found above is.
 	return parityJoin;
 	
@@ -4439,20 +4442,26 @@ void joinAlgebraicSubtangles(int numOfSubtanglesInput, int joinType, int firstJo
 			//5: The internal parity of the subtangle, which is determined by a handful of case considerations accounted for in the determineJoinedParity() function.
 			algebraicComponentsParameters[stageNumber][i][5]=determineJoinedParity(joinType,algebraicComponentsParameters[stageNumber-1][firstJoinIndex][5],algebraicComponentsParameters[stageNumber-1][secondJoinIndex][5],secondComponentRotations);
 			//There is a bug here, sort it out!
-			printf("\n BOOP: firstParity = %d , secondParity = %d , newParity = %d\n", algebraicComponentsParameters[stageNumber-1][firstJoinIndex][5], algebraicComponentsParameters[stageNumber-1][secondJoinIndex][5], algebraicComponentsParameters[stageNumber][i][5]);
+			//printf("\n BOOP: firstParity = %d , secondParity = %d , newParity = %d , SCR = %d\n", algebraicComponentsParameters[stageNumber-1][firstJoinIndex][5], algebraicComponentsParameters[stageNumber-1][secondJoinIndex][5], algebraicComponentsParameters[stageNumber][i][5], secondComponentRotations);
 			//6: The direction of the second strand in the subtangle, which depends on the joined components, the rotations of the second component, and on the join type.
-			//DEAL WITH THIS LATER
-			algebraicComponentsParameters[stageNumber][i][6]=100;
+			//THIS WILL NO LONGER BE TRACKED--I can determine it explicitly from other information when relabeling a refined algebraic PD code to enter/exit labels.
+			algebraicComponentsParameters[stageNumber][i][6]=0;
 			//7: The canonical configuration of the current componet (10 possibilities, relative to the current choice of A=NW); newConfig as determined above.
 			algebraicComponentsParameters[stageNumber][i][7]=newConfig;
 			//8: The join type, horizontal (+1) or vertical (-1); this is stored in joinType in this function.
 			algebraicComponentsParameters[stageNumber][i][8]=joinType;
 			//9: The number of rotations of the corners of the second component in the joining; this is stored in secondComponentRotations in this function.
-			algebraicComponentsParameters[stageNumber][i][0]=secondComponentRotations;
+			algebraicComponentsParameters[stageNumber][i][9]=secondComponentRotations;
 		} else {
 			for(int j=0; j<10; j++){
 				algebraicComponentsParameters[stageNumber][i][j]=algebraicComponentsParameters[stageNumber-1][i][j];
 			}
+		}
+	}
+	//Next, collapse the algebraicComponentsParameters array to elimint the row corresponding to the joined second component.
+	for(int i=(secondJoinIndex+1); i<numOfSubtangles; i++){
+		for(int j=0; j<10; j++){
+			algebraicComponentsParameters[stageNumber][i-1][j] = algebraicComponentsParameters[stageNumber][i][j];
 		}
 	}
 	//DEBUG
@@ -4488,11 +4497,202 @@ void joinAlgebraicSubtangles(int numOfSubtanglesInput, int joinType, int firstJo
 		}
 	}
 	
-	
-
+	//DEBUG
+	//printf("\n DEBUG FLAG: Line %d, initial algebraicComponentsParameters at stage %d:", __LINE__, stageNumber);
+	//printAlgebraicComponentsParameters(numOfSubtanglesInput+stageNumber-1,stageNumber,algebraicComponentsParameters,true);
 	
 }
 
+
+
+
+
+/*
+(NC, 1/26/19)
+This function is used to write out the explicit algebraic construction of the components used in the algebraic planar diagram code.
+It is reverse engineered from the algebraicComponentsParameters array one stage at a time.
+This function is recursive?
+
+
+Inputs:
+
+Outputs:
+
+
+This function calls:
+	itself
+This function is called by:
+	buildAlgebraicSubtangleEMCode()
+	itself
+
+*/
+
+
+void determineAlgebraicConstruction(int stageNumberInput, int numOfComponents, int algebraicComponentsParameters[MAXNN][MAXNN][10], int nestedRotations, int comp2Rotations, int comp1Index, int comp2Index, int joinType, bool firstFunctionCall){
+	
+	//Initialize some variables to track what to do with nested components.
+	int currentStage=stageNumberInput;
+	
+	int joinTypeModified;
+	int comp1IndexModified;
+	int comp2IndexModified;
+	int comp1ModifiedRotations;
+	int comp2ModifiedRotations;
+	
+	int modifiedComp1Numerator;
+	int modifiedComp1Denominator;
+	int modifiedComp2Numerator;
+	int modifiedComp2Denominator;
+	
+	
+	if( firstFunctionCall ){
+		//If this is the first time the function has been called, the write out the algebraic construction for each component.
+		
+		if( numOfComponents == 1 ){
+			printf("\n Algebraic tangle with construction:\n");
+		} else {
+			printf("\n Construction for non-algebraic tangle with %d algebraic components:\n", numOfComponents);
+		}
+		
+		for(int i=0; i<numOfComponents; i++){
+			
+			if( numOfComponents > 1 ){
+				printf("\n [%d]\t", i);
+			} else {
+				printf("\n\t");
+			}
+			
+			if( algebraicComponentsParameters[stageNumberInput][i][2] == 1 ){
+				//If this subtangle has only a single component, it is rational. In this case print its fraction.
+				printf("(%d/%d)", algebraicComponentsParameters[stageNumberInput][i][3], algebraicComponentsParameters[stageNumberInput][i][4]);
+				
+			} else {
+				//If this subtangle has more than one component, than we must call this function again to write out its components.
+				determineAlgebraicConstruction(algebraicComponentsParameters[stageNumberInput][i][0]-1,algebraicComponentsParameters[stageNumberInput][i][2],algebraicComponentsParameters,nestedRotations,algebraicComponentsParameters[stageNumberInput][i][9],algebraicComponentsParameters[stageNumberInput][i][3],algebraicComponentsParameters[stageNumberInput][i][4],algebraicComponentsParameters[stageNumberInput][i][8],false);
+			
+			}
+			
+		}
+		
+		printf("\n");
+		
+	} else {
+		//If this is not the first time the function has been called, we must break down a subtangle into its components.
+		
+		//Determine whether the components have their order and join type changed.
+		if( (nestedRotations%4) == 0 ){
+			//No changes.
+			joinTypeModified=joinType;
+			comp1IndexModified=comp1Index;
+			comp2IndexModified=comp2Index;
+			comp1ModifiedRotations=nestedRotations;
+			comp2ModifiedRotations=nestedRotations+comp2Rotations;
+		} else if( (nestedRotations%4) == 1 ){
+			//Change join type, reverse order if originally product.
+			joinTypeModified=(-1*joinType);
+			if( joinType == -1 ){
+				comp1IndexModified=comp2Index;
+				comp2IndexModified=comp1Index;
+				comp1ModifiedRotations=nestedRotations+comp2Rotations;
+				comp2ModifiedRotations=nestedRotations;
+			} else {
+				comp1IndexModified=comp1Index;
+				comp2IndexModified=comp2Index;
+				comp1ModifiedRotations=nestedRotations;
+				comp2ModifiedRotations=nestedRotations+comp2Rotations;
+			}
+		} else if( (nestedRotations%4) == 2 ){
+			//Do not change join type, but reverse order for both.
+			joinTypeModified=joinType;
+			comp1IndexModified=comp2Index;
+			comp2IndexModified=comp1Index;
+			comp1ModifiedRotations=nestedRotations+comp2Rotations;
+			comp2ModifiedRotations=nestedRotations;
+		} else if( (nestedRotations%4) == 3 ){
+			//Change join type, reverse order if originally sum.
+			joinTypeModified=(-1*joinType);
+			if( joinType == 1 ){
+				comp1IndexModified=comp2Index;
+				comp2IndexModified=comp1Index;
+				comp1ModifiedRotations=nestedRotations+comp2Rotations;
+				comp2ModifiedRotations=nestedRotations;
+			} else {
+				comp1IndexModified=comp1Index;
+				comp2IndexModified=comp2Index;
+				comp1ModifiedRotations=nestedRotations;
+				comp2ModifiedRotations=nestedRotations+comp2Rotations;
+			}
+		}
+			
+		
+		
+		//Write out the first component.
+		if( algebraicComponentsParameters[stageNumberInput][comp1IndexModified][2] == 1 ){
+			//If this subtangle has only a single component, it is rational.
+			//Determine the fraction numerator and denominator (possibly modified by rotation) and print this out.
+			if( (comp1ModifiedRotations%2) == 0 ){
+				//We use p/q if an even number of rotations for this component.
+				modifiedComp1Numerator=algebraicComponentsParameters[stageNumberInput][comp1IndexModified][3];
+				modifiedComp1Denominator=algebraicComponentsParameters[stageNumberInput][comp1IndexModified][4];
+			} else {
+				//We use -q/p if an odd number of rotations for this component.
+				//Note that we would like to maintain the convention that a negative is used only in the denominator if anywhere at all.
+				modifiedComp1Numerator=abs(algebraicComponentsParameters[stageNumberInput][comp1IndexModified][4]);
+				if( algebraicComponentsParameters[stageNumberInput][comp1IndexModified][4] > 0 ){
+					modifiedComp1Denominator=(-1*algebraicComponentsParameters[stageNumberInput][comp1IndexModified][3]);
+				} else {
+					modifiedComp1Denominator=algebraicComponentsParameters[stageNumberInput][comp1IndexModified][3];
+				}
+			}
+			printf("(%d/%d)", modifiedComp1Numerator, modifiedComp1Denominator);
+			
+		} else {
+			printf("(");
+			//If this subtangle has more than one component, than we must call this function again to write out its components.
+			determineAlgebraicConstruction(algebraicComponentsParameters[stageNumberInput][comp1IndexModified][0]-1,algebraicComponentsParameters[stageNumberInput][comp1IndexModified][2],algebraicComponentsParameters,comp1ModifiedRotations,algebraicComponentsParameters[stageNumberInput][comp1IndexModified][9],algebraicComponentsParameters[stageNumberInput][comp1IndexModified][3],algebraicComponentsParameters[stageNumberInput][comp1IndexModified][4],algebraicComponentsParameters[stageNumberInput][comp1IndexModified][8],false);
+			printf(")");
+		}
+		
+		//Write out join type.
+		if( joinTypeModified == 1 ){
+			//Tangle addition
+			printf("+");
+		} else {
+			//Tangle Multiplication
+			printf("*");
+		}
+		
+		//Write out the second component.
+		if( algebraicComponentsParameters[stageNumberInput][comp2IndexModified][2] == 1 ){
+			//If this subtangle has only a single component, it is rational.
+			//Determine the fraction numerator and denominator (possibly modified by rotation) and print this out.
+			if( (comp2ModifiedRotations%2) == 0 ){
+				//We use p/q if an even number of rotations for this component.
+				modifiedComp2Numerator=algebraicComponentsParameters[stageNumberInput][comp2IndexModified][3];
+				modifiedComp2Denominator=algebraicComponentsParameters[stageNumberInput][comp2IndexModified][4];
+			} else {
+				//We use -q/p if an odd number of rotations for this component.
+				//Note that we would like to maintain the convention that a negative is used only in the denominator if anywhere at all.
+				modifiedComp2Numerator=abs(algebraicComponentsParameters[stageNumberInput][comp2IndexModified][4]);
+				if( algebraicComponentsParameters[stageNumberInput][comp2IndexModified][4] > 0 ){
+					modifiedComp2Denominator=(-1*algebraicComponentsParameters[stageNumberInput][comp2IndexModified][3]);
+				} else {
+					modifiedComp2Denominator=algebraicComponentsParameters[stageNumberInput][comp2IndexModified][3];
+				}
+			}
+			printf("(%d/%d)", modifiedComp2Numerator, modifiedComp2Denominator);
+			
+		} else {
+			printf("(");
+			//If this subtangle has more than one component, than we must call this function again to write out its components.
+			determineAlgebraicConstruction(algebraicComponentsParameters[stageNumberInput][comp2IndexModified][0]-1,algebraicComponentsParameters[stageNumberInput][comp2IndexModified][2],algebraicComponentsParameters,comp2ModifiedRotations,algebraicComponentsParameters[stageNumberInput][comp2IndexModified][9],algebraicComponentsParameters[stageNumberInput][comp2IndexModified][3],algebraicComponentsParameters[stageNumberInput][comp2IndexModified][4],algebraicComponentsParameters[stageNumberInput][comp2IndexModified][8],false);
+			printf(")");
+		}
+		
+		
+	}
+	
+}
 
 
 
@@ -4513,6 +4713,7 @@ This function calls:
 	printCompassRationalSubtangleEM()
 	determineCompassCorners()
 	rotateComponentCompassConnections()
+	determineAlgebraicConstruction();
 This function is called by:
 	buildGeneralizedEMCode()
 
@@ -4665,7 +4866,7 @@ void buildAlgebraicSubtangleEMCode(int numOfSubtangles, int rationalSubtangleCon
 			//Now we may proceed with connections.
 			//The join type is accounted for in the joining function.
 			numOfStages++;
-			joinAlgebraicSubtangles(algebraicSubtanglesRefined,joinInfo[0],joinInfo[1],joinInfo[2],joinInfo[3],rationalSubtangleConnectionsCompass,numOfStages,algebraicComponentsParameters);	
+			joinAlgebraicSubtangles(algebraicSubtanglesRefined,joinInfo[0],joinInfo[1],joinInfo[2],joinInfo[3]-1,rationalSubtangleConnectionsCompass,numOfStages,algebraicComponentsParameters);	
 			algebraicSubtanglesRefined--;
 				
 			//DEBUG
@@ -4677,8 +4878,29 @@ void buildAlgebraicSubtangleEMCode(int numOfSubtangles, int rationalSubtangleCon
 			moreJoinsPossible = false;
 		}
 		
-		
 	}
+	
+	
+	//DEBUG
+	//printAlgebraicComponentsParameters(numOfSubtangles,numOfStages,algebraicComponentsParameters,false);
+	
+	//The original tangle is algebraic if all of the rational component subtangles can be joined into a single algebraic tangle.
+	if( algebraicSubtanglesRefined == 1 ){
+		printf("\n The current tangle is algebraic!");
+		//This algebraic tangle is canonical if it has configuration -1, 1, 5, or 8, as tracked by the one remaining component.
+		if( (algebraicComponentsParameters[numOfStages][0][7]==-1) || (algebraicComponentsParameters[numOfStages][0][7]==1) || (algebraicComponentsParameters[numOfStages][0][7]==5) || (algebraicComponentsParameters[numOfStages][0][7]==8) ){
+			printf("\n It is also in canonical form!\n");
+		} else {
+			printf("\n However, it isn't in canonical form.\n");
+		}
+	} else {
+		printf("\n The current tangle is NOT algebraic.\n");
+	}
+	
+	//printf("\n Reconstruction of algebraic components -- work in progress\n");
+	determineAlgebraicConstruction(numOfStages,algebraicSubtanglesRefined,algebraicComponentsParameters,0,0,0,0,0,true);
+
+	
 	
 }
 
