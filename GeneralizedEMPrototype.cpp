@@ -21,21 +21,42 @@ int connectionsEM[2*MAXNN][2][5];
 
 int numOfSubtangles;
 int integerSubtangleConnectionsEM[2*MAXNN][2][5];
-int integerSubtangleParametersEM[2*MAXNN][7];
+int integerSubtangleConnectionsEMCompass[2*MAXNN][2][5];
+int integerSubtangleParametersEM[2*MAXNN][10];
 int gaussIntegerSubtangleEM[2*MAXNN];
 int barsGaussIntegerSubtangleEM[2];
 
 int rationalSubtangleConnectionsEM[2*MAXNN][2][5];
+int rationalSubtangleConnectionsEMCompass[2*MAXNN][2][5];
 int rationalSubtangleParametersEM[2*MAXNN][10];
 int rationalTwistVectorsEM[2*MAXNN][2*MAXNN+1];
 int gaussRationalSubtangleEM[2*MAXNN];
-int barsGaussRationalSubtangleEM[2*MAXNN];
+int barsGaussRationalSubtangleEM[2];
+
+int algebraicSubtangleConnectionsEMCompass[2*MAXNN][2][5];
+int algebraicComponentsParameters[MAXNN][MAXNN][10];
+int numOfAlgebraicStages=0;
+int gaussAlgebraicSubtangleEM[2*MAXNN];
+int barsGaussAlgebraicSubtangleEM[2];
 
 //Initialize an array to store information about which rational subtangles connect across endpoints after finding the rational planar diagram code.
 int endpointConnectionsCornersRational[2][4];
 
 //Initialize an array to store information about the canonical configurations of rational components, relative to a certain choice of the NW corner.
 int rationalComponentsCanonicalConfiguration[MAXNN][4];
+
+//Initialize an array to store information about padded parentheses in the algebraic notation.
+int paddingArray[MAXNN][4*MAXNN][3];
+int paddingArrayLength[MAXNN];
+int paddingArrayRefined[MAXNN][4*MAXNN][3];
+int paddingArrayRefinedLength[MAXNN];
+
+//Initialize a variable to track the tangle classification type.
+//-1: unclassified; 0: non-algebraic; 1: rational, 2: Montesinos (horizontal); 3: generalized Montesinos; 4: algebraic.
+int tangleClassificationType=-1;
+
+//Intialize a variable to track whether the diagram is internally canonical (with respect to each of its algebraic components).
+bool canonicalAlgebraicDiagram=true;
 
 //int montesinosSubtangleConnectionsEM[2*MAXNN][2][5];
 int montesinosSubtangleParametersEM[2*MAXNN][10];
@@ -428,7 +449,9 @@ This function is called by:
 
 void printStandardEM(int numOfCrossingsInput, int connectionsEM[][2][5]){
 	
-	printf("\n Standard Ewing Millett Code: \n");
+	int cornerLetter;
+	
+	printf("\n Standard Planar Diagram Code: \n");
 	for(int i=0; i<numOfCrossingsInput; i++){
 		//Print the orientation of this crossing.
 		if( connectionsEM[i][1][0] > 0 ){
@@ -440,7 +463,7 @@ void printStandardEM(int numOfCrossingsInput, int connectionsEM[][2][5]){
 			//Print the Gauss index of the connected crossing at this corner
 			printf("%d", connectionsEM[i][0][j]);
 			//Print the letter corresponding this corner; four cases.
-			int cornerLetter=connectionsEM[i][1][j];
+			cornerLetter=connectionsEM[i][1][j];
 			if( cornerLetter == 1 ){
 				printf("a ");
 			} else if ( cornerLetter == 2 ){
@@ -484,25 +507,29 @@ This function is called by:
 
 */
 
-void printPrettyIntegerSubtangleEM(int numOfSubtanglesInput, int integerSubtangleConnectionsEMinput[][2][5], int integerSubtangleParametersEM[][7]){
+void printPrettyIntegerSubtangleEM(int numOfSubtanglesInput, int integerSubtangleConnectionsEMinput[][2][5], int integerSubtangleParametersEM[][10]){
 	
-	printf("\n Integer Subtangle EM Code (pretty): \n");
+	int cornerLetter;
+	
+	printf("\n Integer Subtangle ENTER/EXIT PD Code: \n");
 	for(int i=0; i<numOfSubtanglesInput; i++){
 		//Print fraction p/q corresponding to this subtangle.
-		printf("\t[ %d / %d ]\t", integerSubtangleParametersEM[i][3],integerSubtangleParametersEM[i][4]);
+		printf("\t(%d/%d)\t", integerSubtangleParametersEM[i][3],integerSubtangleParametersEM[i][4]);
 		for(int j=1; j<5; j++){
 			//Print the GaussEM index of the connected crossing at this corner
 			printf("%d", integerSubtangleConnectionsEMinput[i][0][j]);
 			//Print the letter corresponding this corner; four cases.
-			int cornerLetter=integerSubtangleConnectionsEMinput[i][1][j];
+			cornerLetter=integerSubtangleConnectionsEMinput[i][1][j];
 			if( cornerLetter == 1 ){
-				printf("A ");
+				printf("A  ");
 			} else if ( cornerLetter == 2 ){
-				printf("B ");
+				printf("B  ");
 			} else if ( cornerLetter == 3 ){
-				printf("C ");
+				printf("C  ");
 			} else if ( cornerLetter == 4 ){
-				printf("D ");
+				printf("D  ");
+			} else if ( cornerLetter == 0 ){
+				printf("ep ");
 			} else {
 				//If none of the above happens, there is a some bug somewhere. Flag this "z" so it can identified at a glance.
 				printf("z ");
@@ -525,6 +552,73 @@ void printPrettyIntegerSubtangleEM(int numOfSubtanglesInput, int integerSubtangl
 	
 }
 
+
+/*
+(NC, 3/23/19)
+Small function to print the integerSubtangleEMCompass arrays in a pretty format, simialr to the standard written EM code.
+This will use compass labeling (NW/NE/SE/SW).
+
+Recall that the integerSubtangleConnectionsEM[][][] array is structured in the following way: integerSubtangleConnectionsEM[ crossing Gauss index ][2][5}
+
+[ i ][ firt strand encountered in crossing over/under (+/-1) ][ GaussEM index of the crossing connected to THIS INDEX corner of this crossing ]
+	[ number and sign of crossings in a subtangle chain		][ corner (letter) of the crossing connected to THIS INDEX corner of this crossing ]
+
+Inputs:
+numOfCrossingsInput: the number of crossings of the currently considered tangle.
+integerSubtangleConnectionsEMinput[][][]: the three dimensional array storing the information needed to reconstruct the generalized EM code for integer subtangles.
+
+
+This function calls:
+	N/A
+This function is called by:
+	anywhere debugging is desired.
+
+*/
+
+void printCompassIntegerSubtangleEM(int numOfSubtanglesInput, int integerSubtangleConnectionsEMinput[][2][5], int integerSubtangleParametersEM[][10]){
+	
+	int cornerLetter;
+	
+	printf("\n Integer Subtangle COMPASS PD Code: \n");
+	for(int i=0; i<numOfSubtanglesInput; i++){
+		//Print fraction p/q corresponding to this subtangle.
+		printf("\t(%d/%d)\t", integerSubtangleParametersEM[i][3],integerSubtangleParametersEM[i][4]);
+		for(int j=1; j<5; j++){
+			//Print the GaussEM index of the connected crossing at this corner
+			printf("%d ", integerSubtangleConnectionsEMinput[i][0][j]);
+			//Print the letter corresponding this corner; four cases.
+			cornerLetter=integerSubtangleConnectionsEMinput[i][1][j];
+			if( cornerLetter == 1 ){
+				printf("NW\t");
+			} else if ( cornerLetter == 2 ){
+				printf("NE\t");
+			} else if ( cornerLetter == 3 ){
+				printf("SE\t");
+			} else if ( cornerLetter == 4 ){
+				printf("SW\t");
+			} else if ( cornerLetter == 0 ){
+				printf("ep\t");
+			} else {
+				//If none of the above happens, there is a some bug somewhere. Flag this "z" so it can identified at a glance.
+				printf("z\t");
+			}
+		}
+		
+		//Print the internal parity of the subtangle and the whether or not the second subtangle strand is reversed relative to this parity.
+		if( integerSubtangleParametersEM[i][5] == 2 ){
+			printf("\t (Parity: infinity");
+		} else {
+			printf("\t (Parity: %d", integerSubtangleParametersEM[i][5]);
+		}
+		if( integerSubtangleParametersEM[i][6] < 0 ){
+			printf("')\n");
+		} else {
+			printf(")\n");
+		}
+		
+	}
+	
+}
 
 
 
@@ -554,25 +648,27 @@ This function is called by:
 
 void printPrettyRationalSubtangleEM(int numOfSubtanglesInput, int rationalSubtangleConnectionsEMinput[][2][5], int rationalSubtangleParametersEM[][10], int twistVectorArray[][2*MAXNN+1]){
 	
-	printf("\n Rational Subtangle EM Code (pretty): \n");
+	int cornerLetter;
+	
+	printf("\n Rational Subtangle ENTER/EXIT PD Code: \n");
 	for(int i=0; i<numOfSubtanglesInput; i++){
 		//Print fraction p/q corresponding to this subtangle.
-		printf("\t[ %d / %d ]\t", rationalSubtangleParametersEM[i][3],rationalSubtangleParametersEM[i][4]);
+		printf("\t(%d/%d)\t", rationalSubtangleParametersEM[i][3],rationalSubtangleParametersEM[i][4]);
 		for(int j=1; j<5; j++){
 			//Print the GaussEM index of the connected subtangle at this corner
 			printf("%d", rationalSubtangleConnectionsEMinput[i][0][j]);
 			//Print the letter corresponding this corner; four cases.
-			int cornerLetter=rationalSubtangleConnectionsEMinput[i][1][j];
+			cornerLetter=rationalSubtangleConnectionsEMinput[i][1][j];
 			if( cornerLetter == 1 ){
-				printf("A ");
+				printf("A  ");
 			} else if ( cornerLetter == 2 ){
-				printf("B ");
+				printf("B  ");
 			} else if ( cornerLetter == 3 ){
-				printf("C ");
+				printf("C  ");
 			} else if ( cornerLetter == 4 ){
-				printf("D ");
+				printf("D  ");
 			} else if ( cornerLetter == 0 ){
-				printf("e ");
+				printf("ep ");
 			} else {
 				//If none of the above happens, there is a some bug somewhere. Flag this "z" so it can identified at a glance.
 				printf("z ");
@@ -636,10 +732,10 @@ This function is called by:
 
 void printCompassRationalSubtangleEM(int numOfSubtanglesInput, int rationalSubtangleConnectionsCompassInput[][2][5], int rationalSubtangleParametersEM[][10], int twistVectorArray[][2*MAXNN+1]){
 	
-	printf("\n Rational Subtangle COMPASS Code: \n");
+	printf("\n Rational Subtangle COMPASS PD Code: \n");
 	for(int i=0; i<numOfSubtanglesInput; i++){
 		//Print fraction p/q corresponding to this subtangle.
-		printf("\t[ %d / %d ]\t", rationalSubtangleParametersEM[i][3],rationalSubtangleParametersEM[i][4]);
+		printf("\t(%d/%d)\t", rationalSubtangleParametersEM[i][3],rationalSubtangleParametersEM[i][4]);
 		for(int j=1; j<5; j++){
 			//Print the GaussEM index of the connected subtangle at this corner
 			printf("%d ", rationalSubtangleConnectionsCompassInput[i][0][j]);
@@ -686,6 +782,104 @@ void printCompassRationalSubtangleEM(int numOfSubtanglesInput, int rationalSubta
 			printf(" %d", twistVectorArray[i][j]);
 		}
 		printf(" ]\n");
+		
+	}
+	
+}
+
+
+
+/*
+(NC, 3/21/19)
+A function to print out the algebraic subtangle version of the generalized planar diagram code.
+This function uses compass direction corner labeling.
+
+Inputs:
+numOfCrossingsInput: the number of crossings of the currently considered tangle.
+rationalSubtangleConnectionsCompassInput[][][]: the three dimensional array storing the information needed to reconstruct the generalized EM code for rational subtangles.
+rationalSubtangleParametersEM[][]
+
+
+This function calls:
+	N/A
+This function is called by:
+	anywhere debugging is desired.
+
+*/
+
+void printCompassAlgebraicSubtangleEM(int numOfSubtanglesInput, int algebraicSubtangleConnectionsCompassInput[][2][5], int *gaussAlgebraicSubtangleEM, int *barsGaussAlgebraicSubtangleEM, int paddingArrayRefined[][4*MAXNN][3],int *paddingArrayRefinedLength, int algebraicComponentsParameters[][MAXNN][10], int numOfStagesInput){
+	
+	int cornerLetter;
+	
+	printf("\n Algebraic Subtangle COMPASS PD Code: \n");
+	for(int i=0; i<numOfSubtanglesInput; i++){
+		//Print the algebraic construction corresponding to this subtangle.
+		printf("\t");
+		for(int j=0; j<paddingArrayRefinedLength[i]; j++){
+			if( paddingArrayRefined[i][j][0]==0 ){
+				if( paddingArrayRefined[i][j][1]==1 ){
+					printf("(");
+				} else if( paddingArrayRefined[i][j][1]==-1 ){
+					printf( ")");
+				} else {
+					//Easily identified error case, this should never happen.
+					printf("X");
+				}
+			} else if( paddingArrayRefined[i][j][0]==1 ){
+				printf("(%d/%d)", paddingArrayRefined[i][j][1], paddingArrayRefined[i][j][2]);
+			} else if( paddingArrayRefined[i][j][0]==2 ){
+				printf("+");
+			} else if( paddingArrayRefined[i][j][0]==3 ){
+				printf("*");
+			} else {
+				//Easily identified error case, this should never happen.
+				printf("X");
+			}
+		}
+		printf("\t\t");
+		for(int j=1; j<5; j++){
+			//Print the GaussEM index of the connected subtangle at this corner
+			printf("%d ", algebraicSubtangleConnectionsCompassInput[i][0][j]);
+			//Print the letter corresponding this corner; four cases.
+			cornerLetter=algebraicSubtangleConnectionsCompassInput[i][1][j];
+			if( cornerLetter == 1 ){
+				printf("NW\t");
+			} else if ( cornerLetter == 2 ){
+				printf("NE\t");
+			} else if ( cornerLetter == 3 ){
+				printf("SE\t");
+			} else if ( cornerLetter == 4 ){
+				printf("SW\t");
+			} else if( cornerLetter == 0 ){
+				printf("ep\t");			
+			} else {
+				//If none of the above happens, there is a some bug somewhere. Flag this "z" so it can identified at a glance.
+				printf("z\t");
+			}
+		}
+		printf("\t");
+		
+		printf("(P: ");
+		if( algebraicComponentsParameters[numOfStagesInput][i][5] == 0 ){
+			printf("0");
+		} else if( algebraicComponentsParameters[numOfStagesInput][i][5] == 1 ){
+			printf("1");
+		} else if( algebraicComponentsParameters[numOfStagesInput][i][5] == 2 ){
+			printf("infinity");
+		} else {
+			printf("?");
+		}
+		if( algebraicComponentsParameters[numOfStagesInput][i][6] < 0 ){
+			printf("'");
+		} else if( algebraicComponentsParameters[numOfStagesInput][i][6] == 0 ){
+			printf("?");
+		}
+		printf(")\t");
+		
+		
+		
+		
+		printf("\n");
 		
 	}
 	
@@ -1274,7 +1468,7 @@ This function is called by:
 
 */
 
-void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubtangleConnectionsEM[][2][5], int *barsInput, int integerSubtangleParametersEM[][7], int *gaussIntegerSubtangleEM, int *barsGaussIntegerSubtangleEM){
+void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubtangleConnectionsEM[][2][5], int *barsInput, int integerSubtangleParametersEM[][10], int *gaussIntegerSubtangleEM, int *barsGaussIntegerSubtangleEM){
 	
 	//Setup a local array to store integerSubtangleConnectionsEM[][2][5].
 	//The array will be refined and stored in the local array, and finally replace the original array at the end.
@@ -1290,7 +1484,7 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 	
 	//Initialize an array ot specify the subtangles connected at the endpoint arcs and the connected corners of these subtangles.
 	//These are calculated from the gaussInput array and information about the barsInput.
-	//The first column always refers to the first enter endpoint; column 2 refers to the first exit endpoint; colum 3 to the second enter endpoint; and column 4 to the second exit endpoint.
+	//The first column always refers to the first enter endpoint; column 2 refers to the first exit endpoint; column 3 to the second enter endpoint; and column 4 to the second exit endpoint.
 	int endpointConnectionsCorners[2][4];
 	
 	//The first crossing listed in the gaussInput array is always connected to the first enter endpoint arc, and always at corner A.
@@ -1890,7 +2084,7 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 	}
 	//DEBUG
 	/*
-	printf("\n endpointConnectionsCorners: Line 1535\n\t [");
+	printf("\n endpointConnectionsCorners: Line %d \n\t [", __LINE__);
 	for(int i=0; i<4; i++){
 		printf(" %d ", endpointConnectionsCorners[0][i]);
 	}
@@ -1899,7 +2093,7 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 		printf(" %d ", endpointConnectionsCorners[1][i]);
 	}
 	printf("]\n");
-	*/
+	/*
 	
 	//Originally, entry [i][1][0] in the EM array referred to the sign of the crossing encountered.
 	//Modify this entry in the integer subtangle EM array so that its magnitude is the number of crossings in the subtangle, and it's sign denotes the sign of the crossings.
@@ -1972,6 +2166,15 @@ void chainCrossings(int &numOfSubtanglesInput, int *gaussInput, int integerSubta
 		}
 	}
 	
+	//Also denote endpoints using a 0 in place of the corner.
+	//THIS IS FOR CONVENIENTLY DISPLAYING THE INFORMATION--IF IT CAUSES CONFLICTS, REMOVE THIS
+	for(int i=0; i<4; i++){
+		integerSubtangleConnectionsEM[endpointConnectionsCorners[0][i]-1][1][endpointConnectionsCorners[1][i]]=0;
+	}
+	
+	//DEBUG
+	//printArrayEM(subtanglesRefined,integerSubtangleConnectionsEM);
+	
 }
 
 
@@ -2001,7 +2204,7 @@ This function is called by:
 
 */
 
-void buildIntegerSubtanlgeEMCode(int numOfCrossingsInput, int *gaussInput, int connectionsEM[][2][5], int *barsInput, int &numOfSubtangles, int integerSubtangleConnectionsEM[][2][5], int integerSubtangleParametersEM[][7], int *gaussIntegerSubtangleEM, int *barsGaussIntegerSubtangleEM){
+void buildIntegerSubtanlgeEMCode(int numOfCrossingsInput, int *gaussInput, int connectionsEM[][2][5], int *barsInput, int &numOfSubtangles, int integerSubtangleConnectionsEM[][2][5], int integerSubtangleParametersEM[][10], int *gaussIntegerSubtangleEM, int *barsGaussIntegerSubtangleEM){
 	
 	//Initialize the subtangle EM code to be the same as the usual EM code.
 	//As the code is "refined" by chaining crossings when possible, this subtangle EM code will be updated.
@@ -2013,7 +2216,7 @@ void buildIntegerSubtanlgeEMCode(int numOfCrossingsInput, int *gaussInput, int c
 	chainCrossings(numOfSubtangles,gaussInput,integerSubtangleConnectionsEM,barsInput,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
 	
 	//DEBUG:
-	printIntegerSubtangleParametersEM(numOfSubtangles,integerSubtangleParametersEM);
+	//printIntegerSubtangleParametersEM(numOfSubtangles,integerSubtangleParametersEM);
 	
 }
 
@@ -2040,7 +2243,7 @@ This function is called by:
 	buildGeneralizedEMCode()
 
 */
-int detectCornerTwisting(int subtangleIndex, int cornerIndex1, int cornerIndex2, int rationalSubtangleConnectionsEM[][2][5], int *integerSubtangleJoins, int integerSubtangleParameters[][7], int *gaussSubtangleInput, int *barsInput){
+int detectCornerTwisting(int subtangleIndex, int cornerIndex1, int cornerIndex2, int rationalSubtangleConnectionsEM[][2][5], int *integerSubtangleJoins, int integerSubtangleParameters[][10], int *gaussSubtangleInput, int *barsInput){
 	
 	//Run through a series of checks to determine whether there is twisting at the two input corners.
 	//If any check fails, the function will skip the remaining checks and return false.
@@ -2303,7 +2506,7 @@ This function is called by:
 	buildRationalSubtangleEMCode()
 
 */
-void joinIntegerToRational(int rightTwist, int botTwist, int leftTwist, int topTwist, int &cornerNW, int &cornerNE, int &cornerSE, int &cornerSW, int &twistCount, int rationalTwistVectorArray[][31], int *integerSubtangleJoins, int initialIndex, int rationalSubtangleConnectionsEM[][2][5], int rationalSubtangleParametersEM[][10], int integerSubtangleParametersEM[][7], int &rationalSubtanglesRefined, int numOfIntegerSubtangles, int endpointConnectionsCorners[2][4], int *gaussRationalSubtangleEM, int *barsGaussRationalSubtangleEM){
+void joinIntegerToRational(int rightTwist, int botTwist, int leftTwist, int topTwist, int &cornerNW, int &cornerNE, int &cornerSE, int &cornerSW, int &twistCount, int rationalTwistVectorArray[][31], int *integerSubtangleJoins, int initialIndex, int rationalSubtangleConnectionsEM[][2][5], int rationalSubtangleParametersEM[][10], int integerSubtangleParametersEM[][10], int &rationalSubtanglesRefined, int numOfIntegerSubtangles, int endpointConnectionsCorners[2][4], int *gaussRationalSubtangleEM, int *barsGaussRationalSubtangleEM){
 	
 	//Initialize a variable to represent the index of the possible joined integer subtangle. The value of this variable will depend on the case.
 	int joinedIntegerSubtangle1Index;
@@ -3134,6 +3337,7 @@ integerSubtangleParametersEM[][7]
 gaussIntegerSubtangleEM[]
 barsGaussIntegerSubtangleEM[2]
 rationalTwistVectorArray[][31]
+tangleClassificationType
 
 Outputs (in the form of modified global variables):
 numOfSubtangles
@@ -3152,7 +3356,7 @@ This function is called by:
 
 */
 
-void buildRationalSubtangleEMCode(int &numOfSubtangles, int integerSubtangleConnectionsEM[][2][5], int integerSubtangleParametersEM[][7], int *gaussIntegerSubtangleEM, int *barsGaussIntegerSubtangleEM, int rationalSubtangleConnectionsEM[][2][5], int rationalSubtangleParametersEM[][10], int rationalTwistVectorsEM[][31], int *gaussRationalSubtangleEM, int *barsGaussRationalSubtangleEM, int endpointConnectionsCornersRational[2][4], int rationalComponentsCanonicalConfiguration[][4]){
+void buildRationalSubtangleEMCode(int &numOfSubtangles, int integerSubtangleConnectionsEM[][2][5], int integerSubtangleParametersEM[][10], int *gaussIntegerSubtangleEM, int *barsGaussIntegerSubtangleEM, int rationalSubtangleConnectionsEM[][2][5], int rationalSubtangleParametersEM[][10], int rationalTwistVectorsEM[][31], int *gaussRationalSubtangleEM, int *barsGaussRationalSubtangleEM, int endpointConnectionsCornersRational[2][4], int rationalComponentsCanonicalConfiguration[][4], int &tangleClassificationType){
 	
 	//Initialize the gaussRationalSubtangleEM array and bars to be the same as the gaussIntegerSubtangleEM array and bars.
 	//As subtangles are joined, the rational array will be refined accordingly to removed joined indices.
@@ -3432,7 +3636,7 @@ void buildRationalSubtangleEMCode(int &numOfSubtangles, int integerSubtangleConn
 			//DEBUG
 			//printf("\n DEBUG FLAG: parity = %d \n", rationalSubtangleParametersEM[i][5]);
 			
-			//If any twisting happens, it will be detected by the detectCronerTwisting() function, which returns the number of twists.
+			//If any twisting happens, it will be detected by the detectCornerTwisting() function, which returns the number of twists.
 			rightTwist=detectCornerTwisting(i,cornerNE,cornerSE,rationalSubtangleConnectionsEM,integerSubtangleJoins,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
 			botTwist=detectCornerTwisting(i,cornerSW,cornerSE,rationalSubtangleConnectionsEM,integerSubtangleJoins,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
 			leftTwist=detectCornerTwisting(i,cornerNW,cornerSW,rationalSubtangleConnectionsEM,integerSubtangleJoins,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
@@ -3912,6 +4116,11 @@ void buildRationalSubtangleEMCode(int &numOfSubtangles, int integerSubtangleConn
 		endpointConnectionsCornersRational[1][i]=endpointConnectionsCorners[1][i];
 	}
 	
+	//If there is only single rational subtangle after joining integer subtangles, then the tangle is rational.
+	if( rationalSubtanglesRefined==1 ){
+		tangleClassificationType=1;
+	}
+
 }
 
 
@@ -3930,6 +4139,7 @@ numOfSubtanglesInput: the number of component subtangles in the connections arra
 connectionsEnterExitInput[][2][5]: the array storing the EM connections info using the enter/exit labeling; this includes identified endpoints.
 rationalSubtangleParametersEM[][10]: the array of parameters for the rational subtangles used in the connectionsEnterExitInput[][] arrays, used to to determine the new configurations and rotations.
 connectionsCompass[][2][5]: an array to store the modified connections labeling, using compass direction labels.
+tangleType: an integer used to denote the classification of the tangle: 0 denotes integer, 1 denotes rational (others could be added in the future, if desired).
 
 Outputs (in the form of a modified input array):
 connectionsCompass[][]
@@ -3941,7 +4151,7 @@ This function is called by
 	buildAlgebraicSubtangleEMCode()
 */
 
-void convertConnectionsToCompass(int numOfSubtanglesInput, int connectionsEnterExitInput[][2][5], int connectionsCompass[][2][5], int rationalSubtangleParametersEM[][10]){
+void convertConnectionsToCompass(int numOfSubtanglesInput, int connectionsEnterExitInput[][2][5], int connectionsCompass[][2][5], int inputSubtangleParametersEM[][10], int tangleType){
 	
 	//Arrays to store the corner information of the component subtangles.
 	//Note that these will bee by default use the internal choice of corner A as NW.
@@ -3960,7 +4170,17 @@ void convertConnectionsToCompass(int numOfSubtanglesInput, int connectionsEnterE
 		//Use the determineCompassCorners() function to find the compass labels of the ith rational subtangle.
 		//Store these in the cornerStorageArray[], and then use these to update the subtangleCorners[0][] array,
 		cornerStorageArray[i]=i;
-		determineCompassCorners(rationalSubtangleParametersEM[i][5],rationalSubtangleParametersEM[i][6],1,rationalSubtangleParametersEM[i][8],cornerStorageArray);
+		
+		//If the input tangles are rational, the configuration is stored in inputSubtanglesParametersEM[i][8[.
+		//If they are integer, then we use configuration -1.
+		if( tangleType == 1 ){
+			determineCompassCorners(inputSubtangleParametersEM[i][5],inputSubtangleParametersEM[i][6],1,inputSubtangleParametersEM[i][8],cornerStorageArray);
+		} else if( tangleType == 0 ){
+			determineCompassCorners(inputSubtangleParametersEM[i][5],inputSubtangleParametersEM[i][6],1,-1,cornerStorageArray);
+		} else {
+			//If this is called without specifying the correct type, set the configuration to 0.
+			determineCompassCorners(inputSubtangleParametersEM[i][5],inputSubtangleParametersEM[i][6],1,0,cornerStorageArray);
+		}
 		
 		subtangleCorners[i][1]=cornerStorageArray[1];
 		subtangleCorners[i][2]=cornerStorageArray[2];
@@ -4384,9 +4604,11 @@ firstJoinIndex: the index of the first of the two components being joined.
 secondJoinIndex: the index of the second of the two components being joined.
 compassConnections[][][]: the array storing the subtangle connection infromation, using the compass labeling.
 stageNumber: the current total number of joins accounted for, including this one.
-algebraicComponentsParameters[][][]: the parameters of the algebraic subtangles, as determined by stage.
 
-Outputs:
+Outputs (in the form of modified global variables):
+algebraicComponentsParameters[][][]: the parameters of the algebraic subtangles, as determined by stage.
+gaussAlgebraicSubtangleEM[]: the algebraic subtangle Gauss code.
+barsGaussAlgebraicSubtangleEM[2]: the bars for the algebraic subtangle Gauss code.
 
 
 This function calls:
@@ -4398,7 +4620,7 @@ This function is called by:
 
 */
 
-void joinAlgebraicSubtangles(int numOfSubtanglesInput, int joinType, int firstJoinIndex, int secondJoinIndex, int secondComponentRotations, int compassConnections[][2][5], int stageNumber, int algebraicComponentsParameters[MAXNN][MAXNN][10]){
+void joinAlgebraicSubtangles(int numOfSubtanglesInput, int joinType, int firstJoinIndex, int secondJoinIndex, int secondComponentRotations, int compassConnections[][2][5], int stageNumber, int algebraicComponentsParameters[MAXNN][MAXNN][10], int *gaussAlgebraicSubtangleEM, int *barsGaussAlgebraicSubtangleEM){
 	
 	//First, join second component to the first in the connections arrays.
 	if( joinType == 1 ){
@@ -4458,18 +4680,18 @@ void joinAlgebraicSubtangles(int numOfSubtanglesInput, int joinType, int firstJo
 			}
 		}
 	}
-	//Next, collapse the algebraicComponentsParameters array to elimint the row corresponding to the joined second component.
-	for(int i=(secondJoinIndex+1); i<numOfSubtangles; i++){
+	//Next, collapse the algebraicComponentsParameters array to eliminate the row corresponding to the joined second component.
+	for(int i=(secondJoinIndex+1); i<numOfSubtanglesInput; i++){
 		for(int j=0; j<10; j++){
 			algebraicComponentsParameters[stageNumber][i-1][j] = algebraicComponentsParameters[stageNumber][i][j];
 		}
 	}
 	//DEBUG
-	printf("\n DEBUG FLAG: Line %d, initial algebraicComponentsParameters at stage %d:", __LINE__, stageNumber);
-	printAlgebraicComponentsParameters(numOfSubtanglesInput+stageNumber-1,stageNumber,algebraicComponentsParameters,true);
+	//printf("\n DEBUG FLAG: Line %d, initial algebraicComponentsParameters at stage %d:", __LINE__, stageNumber);
+	//printAlgebraicComponentsParameters(numOfSubtanglesInput+stageNumber-1,stageNumber,algebraicComponentsParameters,true);
 	
 	//Next, go through all connections array entries and replace any references to the second component with the first component.
-	for(int i=0; i<numOfSubtangles; i++){
+	for(int i=0; i<numOfSubtanglesInput; i++){
 		for(int j=1; j<5; j++){
 			if( compassConnections[i][0][j] == (secondJoinIndex+1) ){
 				compassConnections[i][0][j] = (firstJoinIndex+1);
@@ -4478,7 +4700,7 @@ void joinAlgebraicSubtangles(int numOfSubtanglesInput, int joinType, int firstJo
 	}
 	
 	//Next, collapse the connections array to eliminate the row for the second component.
-	for(int i=(secondJoinIndex+1); i<numOfSubtangles; i++){
+	for(int i=(secondJoinIndex+1); i<numOfSubtanglesInput; i++){
 		for(int j=0; j<5; j++){
 			compassConnections[i-1][0][j] = compassConnections[i][0][j];
 			compassConnections[i-1][1][j] = compassConnections[i][1][j];
@@ -4487,8 +4709,8 @@ void joinAlgebraicSubtangles(int numOfSubtanglesInput, int joinType, int firstJo
 	
 	//Next, decrease the array index of any subtangles with index higher than the removed second component.
 	//Effectively, this means going through and decreasing any reference to these updated indices by one.
-	for(int i=(secondJoinIndex+1); i<=numOfSubtangles; i++){
-		for(int j=0; j<numOfSubtangles-1; j++){
+	for(int i=(secondJoinIndex+1); i<=numOfSubtanglesInput; i++){
+		for(int j=0; j<numOfSubtanglesInput-1; j++){
 			for(int k=1; k<5; k++){
 				if( compassConnections[j][0][k] == i ){
 					compassConnections[j][0][k]--;
@@ -4501,6 +4723,77 @@ void joinAlgebraicSubtangles(int numOfSubtanglesInput, int joinType, int firstJo
 	//printf("\n DEBUG FLAG: Line %d, initial algebraicComponentsParameters at stage %d:", __LINE__, stageNumber);
 	//printAlgebraicComponentsParameters(numOfSubtanglesInput+stageNumber-1,stageNumber,algebraicComponentsParameters,true);
 	
+	//Now update the algebraic subtangle Gauss code to eliminate references to the removed subtangle and collapse the index.
+	//First, replace any reference to the second joined subtangle with the first.
+	for(int i=0; i<(2*numOfSubtanglesInput); i++){
+		if( gaussAlgebraicSubtangleEM[i] == (secondJoinIndex+1) ){
+			gaussAlgebraicSubtangleEM[i]=(firstJoinIndex+1);
+		}
+	}
+	
+	//DEBUG
+	/*
+	printf("\n DEBUG FLAG: Line %d, gaussAlgebraicSubtangleEM code:\n [ ", __LINE__);
+	for(int i=0; i<(2*numOfSubtanglesInput); i++){
+		printf("%d ", gaussAlgebraicSubtangleEM[i]);
+	}
+	printf("]\n ");
+	printf("Bars: [ %d %d ]\n", barsGaussAlgebraicSubtangleEM[0], barsGaussAlgebraicSubtangleEM[1]);
+	*/
+	
+	//Second, remove repeated indices; this works because joined subtangles must be adjacent.
+	//Note that, as usual, joinings across endpoints will cause problems, and so we must be careful to check against these.
+	//We perform the search backwards and collapse as needed as we go along.
+	for(int i=(2*numOfSubtanglesInput)-1; i>0; i--){
+		if( gaussAlgebraicSubtangleEM[i]==gaussAlgebraicSubtangleEM[i-1] ){
+			//Check to make sure these adjacent indices are on the same strand.
+			//Treat these two cases separetly so that we can also update the bar information after collapsing.
+			if( i < barsGaussAlgebraicSubtangleEM[0] ){
+				//Shift everything above index i down by one position.
+				for(int j=i; j<barsGaussAlgebraicSubtangleEM[1]-1; j++){
+					gaussAlgebraicSubtangleEM[j]=gaussAlgebraicSubtangleEM[j+1];
+				}
+				//Decrease both bars by 1.
+				barsGaussAlgebraicSubtangleEM[0]--;
+				barsGaussAlgebraicSubtangleEM[1]--;
+			} else if( i > barsGaussAlgebraicSubtangleEM[0] ){
+				//Shift everything above index i down by one position.
+				for(int j=i; j<barsGaussAlgebraicSubtangleEM[1]-1; j++){
+					gaussAlgebraicSubtangleEM[j]=gaussAlgebraicSubtangleEM[j+1];
+				}
+				//Decrease just the second bar by 1.
+				barsGaussAlgebraicSubtangleEM[1]--;
+			}
+		}
+	}
+	
+	//DEBUG
+	/*
+	printf("\n DEBUG FLAG: Line %d, gaussAlgebraicSubtangleEM code:\n [ ", __LINE__);
+	for(int i=0; i<(2*(numOfSubtanglesInput-1)); i++){
+		printf("%d ", gaussAlgebraicSubtangleEM[i]);
+	}
+	printf("]\n ");
+	printf("Bars: [ %d %d ]\n", barsGaussAlgebraicSubtangleEM[0], barsGaussAlgebraicSubtangleEM[1]);
+	*/
+	
+	//Third, go through and collapse the index of anything higher than secondJoinIndex in the Gauss code.
+	for(int i=0; i<(2*(numOfSubtanglesInput-1)); i++){
+		if( gaussAlgebraicSubtangleEM[i] > secondJoinIndex ){
+			gaussAlgebraicSubtangleEM[i]--;
+		}
+	}
+	
+	//DEBUG
+	/*
+	printf("\n DEBUG FLAG: Line %d, gaussAlgebraicSubtangleEM code:\n [ ", __LINE__);
+	for(int i=0; i<(2*(numOfSubtanglesInput-1)); i++){
+		printf("%d ", gaussAlgebraicSubtangleEM[i]);
+	}
+	printf("]\n ");
+	printf("Bars: [ %d %d ]\n", barsGaussAlgebraicSubtangleEM[0], barsGaussAlgebraicSubtangleEM[1]);
+	*/
+	
 }
 
 
@@ -4511,12 +4804,28 @@ void joinAlgebraicSubtangles(int numOfSubtanglesInput, int joinType, int firstJo
 (NC, 1/26/19)
 This function is used to write out the explicit algebraic construction of the components used in the algebraic planar diagram code.
 It is reverse engineered from the algebraicComponentsParameters array one stage at a time.
-This function is recursive?
+This function is recursive.
+
+This function was originally intended to print out the algebraic construction as it was determined.
+However, the generated construction contains unnecessary parentheses at this stage.
+The refined construction is now printed in a separete function; the printf commands below are kept for debugging.
 
 
 Inputs:
+stageNumberInput: the current stage of algebraic joining as the construction is determined.
+numOfComponents: the numer of algebraic subtangle components used in the construction.
+algebraicComponentsParameters[][][10]: the array storing the parameter information of the aglebraic subtangle components in the algebraic planar diagram code (by stage).
+nestedRotations: the number of nested rotations used when determing the fraction for a joined component (only matters when called recursively).
+comp2Rotations: the number of rotations for the second joined component relative to its new, rotated NW corner (not counting the nested rotations).
+comp1Index: the index of the first algebraic component being joined.
+comp2Index: the index of the second algebraic component being joined.
+joinType: the type of joining, addition (+1) or multiplication (-1).
+firstFunctionCall: a boolean used to track whether this is the first time the function is called; used to distinguish between recursive applications of the function.
+componentNumberNA: in the special case of determining the construction for an algebraic component in a non-algebraic tangle, this index denotes which component (it is 0 for algebraic tangles).
 
-Outputs:
+Outputs (in the form of modified global variables)
+paddingArray[][][3]: an array to store the construction information, including fractions, join type, and nested parentheses.
+paddingArrayLength: the length of the padding array.
 
 
 This function calls:
@@ -4528,7 +4837,7 @@ This function is called by:
 */
 
 
-void determineAlgebraicConstruction(int stageNumberInput, int numOfComponents, int algebraicComponentsParameters[MAXNN][MAXNN][10], int nestedRotations, int comp2Rotations, int comp1Index, int comp2Index, int joinType, bool firstFunctionCall){
+void determineAlgebraicConstruction(int stageNumberInput, int numOfComponents, int algebraicComponentsParameters[MAXNN][MAXNN][10], int nestedRotations, int comp2Rotations, int comp1Index, int comp2Index, int joinType, bool firstFunctionCall, int paddingArray[][4*MAXNN][3], int paddingArrayLength[], int componentNumberNA){
 	
 	//Initialize some variables to track what to do with nested components.
 	int currentStage=stageNumberInput;
@@ -4548,33 +4857,48 @@ void determineAlgebraicConstruction(int stageNumberInput, int numOfComponents, i
 	if( firstFunctionCall ){
 		//If this is the first time the function has been called, the write out the algebraic construction for each component.
 		
+		//DEBUG printf
+		/*
 		if( numOfComponents == 1 ){
-			printf("\n Algebraic tangle with construction:\n");
+			printf("\n Algebraic tangle with (unrefined) construction:\n");
 		} else {
-			printf("\n Construction for non-algebraic tangle with %d algebraic components:\n", numOfComponents);
+			printf("\n (Unrefined) construction for non-algebraic tangle with %d algebraic components:\n", numOfComponents);
 		}
+		*/
 		
 		for(int i=0; i<numOfComponents; i++){
 			
+			//DEBUG printf
+			/*
 			if( numOfComponents > 1 ){
 				printf("\n [%d]\t", i);
 			} else {
 				printf("\n\t");
 			}
+			*/
 			
 			if( algebraicComponentsParameters[stageNumberInput][i][2] == 1 ){
+				//DEBUG
 				//If this subtangle has only a single component, it is rational. In this case print its fraction.
-				printf("(%d/%d)", algebraicComponentsParameters[stageNumberInput][i][3], algebraicComponentsParameters[stageNumberInput][i][4]);
+				//printf("(%d/%d)", algebraicComponentsParameters[stageNumberInput][i][3], algebraicComponentsParameters[stageNumberInput][i][4]);
+				
+				//Populate padding array information.
+				paddingArrayLength[i]=1;
+				paddingArray[i][0][0]=1;
+				paddingArray[i][0][1]=algebraicComponentsParameters[stageNumberInput][i][3];
+				paddingArray[i][0][2]=algebraicComponentsParameters[stageNumberInput][i][4];
 				
 			} else {
 				//If this subtangle has more than one component, than we must call this function again to write out its components.
-				determineAlgebraicConstruction(algebraicComponentsParameters[stageNumberInput][i][0]-1,algebraicComponentsParameters[stageNumberInput][i][2],algebraicComponentsParameters,nestedRotations,algebraicComponentsParameters[stageNumberInput][i][9],algebraicComponentsParameters[stageNumberInput][i][3],algebraicComponentsParameters[stageNumberInput][i][4],algebraicComponentsParameters[stageNumberInput][i][8],false);
+				paddingArrayLength[i]=0;
+				determineAlgebraicConstruction(algebraicComponentsParameters[stageNumberInput][i][0]-1,algebraicComponentsParameters[stageNumberInput][i][2],algebraicComponentsParameters,nestedRotations,algebraicComponentsParameters[stageNumberInput][i][9],algebraicComponentsParameters[stageNumberInput][i][3],algebraicComponentsParameters[stageNumberInput][i][4],algebraicComponentsParameters[stageNumberInput][i][8],false,paddingArray,paddingArrayLength,i);
 			
 			}
 			
 		}
 		
-		printf("\n");
+		//DEBUG printf
+		//printf("\n");
 		
 	} else {
 		//If this is not the first time the function has been called, we must break down a subtangle into its components.
@@ -4623,7 +4947,6 @@ void determineAlgebraicConstruction(int stageNumberInput, int numOfComponents, i
 				comp2ModifiedRotations=nestedRotations+comp2Rotations;
 			}
 		}
-			
 		
 		
 		//Write out the first component.
@@ -4644,22 +4967,53 @@ void determineAlgebraicConstruction(int stageNumberInput, int numOfComponents, i
 					modifiedComp1Denominator=algebraicComponentsParameters[stageNumberInput][comp1IndexModified][3];
 				}
 			}
-			printf("(%d/%d)", modifiedComp1Numerator, modifiedComp1Denominator);
+			//DEBUG printf
+			//printf("(%d/%d)", modifiedComp1Numerator, modifiedComp1Denominator);
+			
+			//Adjust padding array entries.
+			paddingArrayLength[componentNumberNA]++;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][0]=1;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][1]=modifiedComp1Numerator;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][2]=modifiedComp1Denominator;
 			
 		} else {
-			printf("(");
+			
+			//Adjust padding array entries.
+
+			paddingArrayLength[componentNumberNA]++;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][0]=0;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][1]=0;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][2]=0;
+			
+			//DEBUG
+			//printf("(");
 			//If this subtangle has more than one component, than we must call this function again to write out its components.
-			determineAlgebraicConstruction(algebraicComponentsParameters[stageNumberInput][comp1IndexModified][0]-1,algebraicComponentsParameters[stageNumberInput][comp1IndexModified][2],algebraicComponentsParameters,comp1ModifiedRotations,algebraicComponentsParameters[stageNumberInput][comp1IndexModified][9],algebraicComponentsParameters[stageNumberInput][comp1IndexModified][3],algebraicComponentsParameters[stageNumberInput][comp1IndexModified][4],algebraicComponentsParameters[stageNumberInput][comp1IndexModified][8],false);
-			printf(")");
+			determineAlgebraicConstruction(algebraicComponentsParameters[stageNumberInput][comp1IndexModified][0]-1,algebraicComponentsParameters[stageNumberInput][comp1IndexModified][2],algebraicComponentsParameters,comp1ModifiedRotations,algebraicComponentsParameters[stageNumberInput][comp1IndexModified][9],algebraicComponentsParameters[stageNumberInput][comp1IndexModified][3],algebraicComponentsParameters[stageNumberInput][comp1IndexModified][4],algebraicComponentsParameters[stageNumberInput][comp1IndexModified][8],false,paddingArray,paddingArrayLength,componentNumberNA);
+			//printf(")");
+			
+			//Adjust padding array entries.
+			paddingArrayLength[componentNumberNA]++;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][0]=0;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][1]=0;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][2]=0;
 		}
+		
+		//Adjust padding array entries.
+		paddingArrayLength[componentNumberNA]++;
+		paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][1]=0;
+		paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][2]=0;
 		
 		//Write out join type.
 		if( joinTypeModified == 1 ){
 			//Tangle addition
-			printf("+");
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][0]=2;
+			//DEBUG printf
+			//printf("+");
 		} else {
 			//Tangle Multiplication
-			printf("*");
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][0]=3;
+			//DEBUG printf
+			//printf("*");
 		}
 		
 		//Write out the second component.
@@ -4680,13 +5034,33 @@ void determineAlgebraicConstruction(int stageNumberInput, int numOfComponents, i
 					modifiedComp2Denominator=algebraicComponentsParameters[stageNumberInput][comp2IndexModified][3];
 				}
 			}
-			printf("(%d/%d)", modifiedComp2Numerator, modifiedComp2Denominator);
+			//DEBUG printf
+			//printf("(%d/%d)", modifiedComp2Numerator, modifiedComp2Denominator);
+			
+			//Adjust padding array entries.
+			paddingArrayLength[componentNumberNA]++;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][0]=1;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][1]=modifiedComp2Numerator;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][2]=modifiedComp2Denominator;
 			
 		} else {
-			printf("(");
+			//Adjust padding array entries.
+			paddingArrayLength[componentNumberNA]++;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][0]=0;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][1]=0;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][2]=0;
+			
+			//DEBUG printf
+			//printf("(");
 			//If this subtangle has more than one component, than we must call this function again to write out its components.
-			determineAlgebraicConstruction(algebraicComponentsParameters[stageNumberInput][comp2IndexModified][0]-1,algebraicComponentsParameters[stageNumberInput][comp2IndexModified][2],algebraicComponentsParameters,comp2ModifiedRotations,algebraicComponentsParameters[stageNumberInput][comp2IndexModified][9],algebraicComponentsParameters[stageNumberInput][comp2IndexModified][3],algebraicComponentsParameters[stageNumberInput][comp2IndexModified][4],algebraicComponentsParameters[stageNumberInput][comp2IndexModified][8],false);
-			printf(")");
+			determineAlgebraicConstruction(algebraicComponentsParameters[stageNumberInput][comp2IndexModified][0]-1,algebraicComponentsParameters[stageNumberInput][comp2IndexModified][2],algebraicComponentsParameters,comp2ModifiedRotations,algebraicComponentsParameters[stageNumberInput][comp2IndexModified][9],algebraicComponentsParameters[stageNumberInput][comp2IndexModified][3],algebraicComponentsParameters[stageNumberInput][comp2IndexModified][4],algebraicComponentsParameters[stageNumberInput][comp2IndexModified][8],false,paddingArray,paddingArrayLength,componentNumberNA);
+			//printf(")");
+			
+			//Adjust padding array entries.
+			paddingArrayLength[componentNumberNA]++;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][0]=0;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][1]=0;
+			paddingArray[componentNumberNA][paddingArrayLength[componentNumberNA]-1][2]=0;
 		}
 		
 		
@@ -4695,16 +5069,252 @@ void determineAlgebraicConstruction(int stageNumberInput, int numOfComponents, i
 }
 
 
+/*
+(NC, 3/19/19)
+This function refines the paddingArray to eliminate unnecessary parentheses.
+If possible, callapse the refined padding array by removing unnecessary zero columns.
+There are four possible ways to collapse the array; they all depend on identifying padded parentheses.
+The first row of the array describes the construction according to the following rules:
+A 0 denotes a parenthese; a 1 denotes a rational subtangle; a 2 denotes a +; a 3 denotes a *.
+Parentheses always come in pairs; they are unnecessary if there is both a + or * on the inside and outside.
+We identify this by seeing if adjacent pairs atisfy this pattern, and if so, deleting the unnecessary columns.
+
+After refinement, we also go through and assign a direction each parenthese based on what is next to it.
+This direction is recorded in the second column entry.
+A -1 indicates open left ), and a +1 indicates open right (.
+
+Inputs:
+paddingArray[][3]: the array storing the construction information for the tangle under consideraation.
+paddingArrayLength: the length of this array.
+tangleClassificationType: an integer used to track the type of the tangle, provided a classification can be determined.
+numOfAlgebraicComponents: the number of algebraic subtangles; checked to against to avoid re-classifying a non-algebraic tangle.
+componentNumerNA: the index of the component algebraic subtangle; this is 0 by default for algebraic tangles, but can vary for non-algebraic tangles.
+
+Outputs (in the form of modified global variables):
+paddingArrayRefined[][3]: the array storing the refined construction information with unnecessary parentheses deleted.
+paddingArrayRefinedLength: the length of this array.
+
+This function calls:
+	none
+This function is called by:
+	buildAlgebraicSubtangleEMCode()
+
+*/
+
+void refinePaddingArray(int paddingArray[][4*MAXNN][3], int paddingArrayLength[], int paddingArrayRefined[][4*MAXNN][3], int paddingArrayRefinedLength[], int &tangleClassificationType, int numOfAlgebraicComponents, int componentNumberNA){
+	
+	//Initialize the paddingArrayRefined as the original padding array.
+	for(int i=0; i<paddingArrayLength[componentNumberNA]; i++){
+		for(int j=0; j<3; j++){
+			paddingArrayRefined[componentNumberNA][i][j] = paddingArray[componentNumberNA][i][j];
+		}
+	}
+	paddingArrayRefinedLength[componentNumberNA]=paddingArrayLength[componentNumberNA];
+	
+	//Initialize check condition.
+	bool refinePaddingArrayCheck=true;
+	
+	//Intialize variables to track the index of the two columns to be collapsed, if any are found.
+	int zeroCount=0;
+	int zeroColumnsIndex[paddingArrayRefinedLength[componentNumberNA]];
+	int collapseCol1;
+	int collapseCol2;
+	
+	//Continue to search until no subsequences are found.
+	while( refinePaddingArrayCheck ){
+		
+		//Set the search boolean to false; change it to true if a subsequence is found.
+		refinePaddingArrayCheck=false;
+		
+		//Count the number of zeros columns in the current refined padding array.
+		//We will check if any of these can be removed.
+		zeroCount=0;
+		for(int i=0; i<paddingArrayRefinedLength[componentNumberNA]; i++){
+			if( paddingArrayRefined[componentNumberNA][i][0] == 0 ){
+				zeroColumnsIndex[zeroCount]=i;
+				zeroCount++;
+			}
+		}
+		
+		//Check if any pair of adjacent zeros can be collapsed.
+		//If yes, terminate the search, collapse the columns, and repeat the search on the new refined padding array.
+		for(int i=0; i<zeroCount-1; i++){
+			collapseCol1=zeroColumnsIndex[i];
+			collapseCol2=zeroColumnsIndex[i+1];
+			
+			//Note that we also check to make sure each index we consider is between 0 and paddingArrayRefinedLength.
+			if( ( (paddingArrayRefined[componentNumberNA][collapseCol1][0]==0) && (paddingArrayRefined[componentNumberNA][collapseCol1+1][0]==1) && (paddingArrayRefined[componentNumberNA][collapseCol1+2][0]==2) )
+				&& ( ((paddingArrayRefined[componentNumberNA][collapseCol2][0]==0)) && (paddingArrayRefined[componentNumberNA][collapseCol2+1][0]==2) ) 
+				&& ((collapseCol2+1)<paddingArrayRefinedLength[componentNumberNA]) ){
+				//Case 1: 012...02 -> 12...2
+				refinePaddingArrayCheck = true;
+				break;
+			} else if( ( (paddingArrayRefined[componentNumberNA][collapseCol1-1][0]==2) && (paddingArrayRefined[componentNumberNA][collapseCol1][0]==0) )
+				&& ( ((paddingArrayRefined[componentNumberNA][collapseCol2-2][0]==2)) && (paddingArrayRefined[componentNumberNA][collapseCol2-1][0]==1) && (paddingArrayRefined[componentNumberNA][collapseCol2][0]==0) )
+				&& (collapseCol1>0) ){
+				//Case 2: 20...210 -> 2...21
+				refinePaddingArrayCheck = true;
+				break;
+			} else if( ( (paddingArrayRefined[componentNumberNA][collapseCol1][0]==0) && (paddingArrayRefined[componentNumberNA][collapseCol1+1][0]==1) && (paddingArrayRefined[componentNumberNA][collapseCol1+2][0]==3) )
+				&& ( ((paddingArrayRefined[componentNumberNA][collapseCol2][0]==0)) && (paddingArrayRefined[componentNumberNA][collapseCol2+1][0]==3) ) 
+				&& ((collapseCol2+1)<paddingArrayRefinedLength[componentNumberNA]) ){
+				//Case 3: 013...03 -> 13...3
+				refinePaddingArrayCheck = true;
+				break;
+			} else if( ( (paddingArrayRefined[componentNumberNA][collapseCol1-1][0]==3) && (paddingArrayRefined[componentNumberNA][collapseCol1][0]==0) )
+				&& ( ((paddingArrayRefined[componentNumberNA][collapseCol2-2][0]==3)) && (paddingArrayRefined[componentNumberNA][collapseCol2-1][0]==1) && (paddingArrayRefined[componentNumberNA][collapseCol2][0]==0) )
+				&& (collapseCol1>0) ){
+				//Case 4: 30...310 -> 3...31
+				refinePaddingArrayCheck = true;
+				break;
+			}
+				
+		}
+		
+		//If refinePaddingArrayCheck==true, then collapse the two identified columns of paddingArrayRefined.
+		if( refinePaddingArrayCheck ){
+			//Collapse the second column first.
+			for(int i=collapseCol2; i<paddingArrayRefinedLength[componentNumberNA]-1; i++){
+				paddingArrayRefined[componentNumberNA][i][0]=paddingArrayRefined[componentNumberNA][i+1][0];
+				paddingArrayRefined[componentNumberNA][i][1]=paddingArrayRefined[componentNumberNA][i+1][1];
+				paddingArrayRefined[componentNumberNA][i][2]=paddingArrayRefined[componentNumberNA][i+1][2];
+			}
+			paddingArrayRefinedLength[componentNumberNA]--;
+			
+			//Next, collapse the first column.
+			for(int i=collapseCol1; i<paddingArrayRefinedLength[componentNumberNA]-1; i++){
+				paddingArrayRefined[componentNumberNA][i][0]=paddingArrayRefined[componentNumberNA][i+1][0];
+				paddingArrayRefined[componentNumberNA][i][1]=paddingArrayRefined[componentNumberNA][i+1][1];
+				paddingArrayRefined[componentNumberNA][i][2]=paddingArrayRefined[componentNumberNA][i+1][2];
+			}
+			paddingArrayRefinedLength[componentNumberNA]--;
+		}
+		
+	}
+	
+	
+	//Now record the number of remaining parentheses.
+	zeroCount=0;
+	for(int i=0; i<paddingArrayRefinedLength[componentNumberNA]; i++){
+		if( paddingArrayRefined[componentNumberNA][i][0] == 0 ){
+			zeroColumnsIndex[zeroCount]=i;
+			zeroCount++;
+		}
+	}
+	
+	//If any parentheses are left, we assign a direction to each based on what is next to it.
+	for(int i=0; i<zeroCount; i++){
+		if(zeroColumnsIndex[i]==0){
+			//If the first entry is a parenthese, it always opens right.
+			paddingArrayRefined[componentNumberNA][zeroColumnsIndex[i]][1]=1;
+		} else if(zeroColumnsIndex[i]==(paddingArrayRefinedLength[componentNumberNA]-1)){
+			//If the last entry is a parenthese, it always opens left.
+			paddingArrayRefined[componentNumberNA][zeroColumnsIndex[i]][1]=-1;
+		} else if( (paddingArrayRefined[componentNumberNA][zeroColumnsIndex[i]-1][0]>1) || (paddingArrayRefined[componentNumberNA][zeroColumnsIndex[i]+1][0]==1) ){
+			//If the entry to the left of the zero is a 2 or 3 (+/*), or if the entry to the right of the zero is a 1, the parenthese opens right.
+			paddingArrayRefined[componentNumberNA][zeroColumnsIndex[i]][1]=1;
+		} else if( (paddingArrayRefined[componentNumberNA][zeroColumnsIndex[i]+1][0]>1) || (paddingArrayRefined[componentNumberNA][zeroColumnsIndex[i]-1][0]==1) ){
+			//If the entry to the right of the zero is a 2 or 3 (+/*), or if the entry to the left of the zero is a 1, the parenthese opens left.
+			paddingArrayRefined[componentNumberNA][zeroColumnsIndex[i]][1]=-1;
+		} else {
+			//If none of the above hold, the zero column is sandwhiched between two other zero columns. In this case, all of these parentheses must open in the same direction.
+			//The direction of this parenthese is then the same as the direction of the parenthese immediately preceding it.
+			//Note that, because the zero index loops forward, the preceding parenthese will have a direction at this check (this will never happen for the first entry).
+			paddingArrayRefined[componentNumberNA][zeroColumnsIndex[i]][1]=paddingArrayRefined[componentNumberNA][zeroColumnsIndex[i-1]][1];
+		}
+	}
+	
+	//Determine the classification type:
+	if( (paddingArrayRefinedLength[componentNumberNA]>1) && (zeroCount==0) && (numOfAlgebraicComponents==1) ){
+		//If there is more than one component but no parentheses, the tangle type is Montesinos.
+		tangleClassificationType=2;
+	}
+	//While we have enough information to determine if the tangle is generalized Montesinos, has not been implemented in this program, and is determined separately in the main program.
+	
+	
+}
+
 
 
 /*
-(NC, 1/17/19)
+(NC, 3/20/19)
+This function is used to print out the construction for an algebraic tangle using its refined padding array.
+The padding array doesn't (yet) make sense for non-algebraic tangles, so this function will not work properly if applied in this case. 
+
+Inputs:
+paddingArrayRefined[][3]: the array storing the refined construction information with unnecessary parentheses deleted.
+paddingArrayRefinedLength: the length of this array.
+tangleClassificationType: an integer to track the tangle classification, if it has been determined.
+componentNumberNA: the index of the rational subtangle component in a non-algebraic tangle; if the tangle is algebraic, this is 0 by default.
+
+Outputs:
+printf stuff
+
+This function calls:
+	none
+This function is called by:
+	buildAlgebraicSubtangleEMCode()
+
+*/
+
+void printRefinedAlgebraicConstruction(int paddingArrayRefined[][4*MAXNN][3], int paddingArrayRefinedLength[], int &tangleClassificationType, int componentNumberNA){
+	
+	printf("\n\t");
+	
+	for(int i=0; i<paddingArrayRefinedLength[componentNumberNA]; i++){
+		if( paddingArrayRefined[componentNumberNA][i][0]==0 ){
+			if( paddingArrayRefined[componentNumberNA][i][1]==1 ){
+				printf("(");
+			} else if( paddingArrayRefined[componentNumberNA][i][1]==-1 ){
+				printf( ")");
+			} else {
+				//Easily identified error case, this should never happen.
+				printf("X");
+			}
+		} else if( paddingArrayRefined[componentNumberNA][i][0]==1 ){
+			printf("(%d/%d)", paddingArrayRefined[componentNumberNA][i][1], paddingArrayRefined[componentNumberNA][i][2]);
+		} else if( paddingArrayRefined[componentNumberNA][i][0]==2 ){
+			printf("+");
+		} else if( paddingArrayRefined[componentNumberNA][i][0]==3 ){
+			printf("*");
+		} else {
+			//Easily identified error case, this should never happen.
+			printf("X");
+		}
+	}
+	
+}
+
+
+
+
+
+
+/*
+(NC, 1/17/19)-- (UPDATE 3/23/19)
 This function is ued to build up the a version of the planar diagram code in terms of algebraic subtangles.
+This construction was originally printed as it was generated, but now it is tracked in the paddingArray, which stores information about type of joinings and parentheses.
+The refined construction is printed elsewhere.
+The old printf commands are left if needed for future debugging.
 
 
 Inputs:
+numOfSubtangles: the overall number of subtangles in the current classification.
+rationalSubtangleConnectionsEM[][][]: the array storing the connection information for the rational planar diagram code (with enter/exit labels).
+rationalSubtangleParametersEM[][10]: the array storing the information for the parameters of the rational components in the rational planar diagram code.
+rationalTwistVectorsEM[][]: the array storing the twist vector information for the rational planar diagram code.
+gaussRationalSubtangleEM: the rational Gauss code denoting the order the rational components are encountered.
+barsGaussRationalSubtangleEM: the bar placement for the rational Gauss code.
+endpointConnectionsCornersRational[2][4]: the array storing information about which rational components connect to endpoints in the original tangle.
+rationalComponentsCanonicalConfiguration[][4]: the array storing information about the canonical configuration of the rational components.
+rationalSubtangleConnectionsEMCompass[][2][5]: the array storing the connection information for the rational planar diagram code (with compass labels).
 
-Outputs:
+Outputs (in the form of modified global variables):
+algebraicSubtangleConnectionsEMCompass[][2][5]: the array storing the connection information for the algebraic planar diagram code (with compass labels).
+gaussAlgebraicSubtangleEM: the algebraic Gauss code denoting the order the algebraic components are encountered.
+barsGaussAlgebraicSubtangleEM: the bar placement for the algebraic Gauss code.
+algebraicComponentsParameters[][][10]: the array storing the information for the parameters of the algebraic components in the algebraic planar diagram code (by joining stage).
+numOfAlgebraicStages: the number of stages needed to combine joinable algebraic components.
 
 
 This function calls:
@@ -4713,15 +5323,18 @@ This function calls:
 	printCompassRationalSubtangleEM()
 	determineCompassCorners()
 	rotateComponentCompassConnections()
-	determineAlgebraicConstruction();
+	determineAlgebraicConstruction()
+	refinePaddingArray()
+	printRefinedAlgebraicConstruction()
+	printAlgebraicSubtangleCode()
 This function is called by:
 	buildGeneralizedEMCode()
 
 */
-void buildAlgebraicSubtangleEMCode(int numOfSubtangles, int rationalSubtangleConnectionsEM[][2][5], int rationalSubtangleParametersEM[][10], int rationalTwistVectorsEM[][2*MAXNN+1], int *gaussRationalSubtangleEM, int *barsGaussRationalSubtangleEM, int endpointConnectionsCornersRational[2][4], int rationalComponentsCanonicalConfiguration[][4]){
+void buildAlgebraicSubtangleEMCode(int &numOfSubtangles, int rationalSubtangleConnectionsEM[][2][5], int rationalSubtangleParametersEM[][10], int rationalTwistVectorsEM[][2*MAXNN+1], int *gaussRationalSubtangleEM, int *barsGaussRationalSubtangleEM, int endpointConnectionsCornersRational[2][4], int rationalComponentsCanonicalConfiguration[][4], int rationalSubtangleConnectionsEMCompass[][2][5], int algebraicSubtangleConnectionsEMCompass[][2][5], int *gaussAlgebraicSubtangleEM, int *barsGaussAlgebraicSubtangleEM, int algebraicComponentsParameters[][MAXNN][10], int &numOfAlgebraicStages){
 	
 	//Initialize an array to track the parameters of the algebraic components as they are joined in stages, and a varible to track the number of parameters.
-	int algebraicComponentsParameters[MAXNN][MAXNN][10];
+	//int algebraicComponentsParameters[MAXNN][MAXNN][10];
 	int algebraicSubtanglesRefined=numOfSubtangles;
 	int numOfStages=0;
 	
@@ -4750,8 +5363,8 @@ void buildAlgebraicSubtangleEMCode(int numOfSubtangles, int rationalSubtangleCon
 	}
 	
 	//DEBUG
-	printf("\n DEBUG FLAG: Line %d, initial algebraicComponentsParameters at stage %d:", __LINE__, numOfStages);
-	printAlgebraicComponentsParameters(numOfSubtangles,numOfStages,algebraicComponentsParameters,true);
+	//printf("\n DEBUG FLAG: Line %d, initial algebraicComponentsParameters at stage %d:", __LINE__, numOfStages);
+	//printAlgebraicComponentsParameters(numOfSubtangles,numOfStages,algebraicComponentsParameters,true);
 	
 	//Initialize a boolean in the special case where a local knot is detected, and another boolean to track when an indentified tangle has a non-canonical form.
 	//If something strange happens where this tangle fails to be identified as Montesinos, flag this will a boolean as well.
@@ -4775,22 +5388,46 @@ void buildAlgebraicSubtangleEMCode(int numOfSubtangles, int rationalSubtangleCon
 		
 	//DEBUG
 	//printArrayEM(numOfSubtangles,rationalSubtangleConnectionsEMlocal);
+	//printPrettyRationalSubtangleEM(numOfSubtangles,rationalSubtangleConnectionsEMlocal,rationalSubtangleParametersEM,rationalTwistVectorsEM);
 	
-	//Initialize an array to track the connections in terms of the compass corners, and fill these in.
-	int rationalSubtangleConnectionsCompass[numOfSubtangles][2][5];
-	convertConnectionsToCompass(numOfSubtangles,rationalSubtangleConnectionsEMlocal,rationalSubtangleConnectionsCompass,rationalSubtangleParametersEM);
+	
+	//Even though the local rationalSubtangleConnectionsEM array is used to construct array using compass directions, it may be useful to clearly identify the endpoints in the original array.
+	//This is for the benefit of comparing the two codes; this can be removed later if it causes a conflict.
+	rationalSubtangleConnectionsEM[ endpointConnectionsCornersRational[0][0] - 1 ][1][ endpointConnectionsCornersRational[1][0] ] = 0;
+	rationalSubtangleConnectionsEM[ endpointConnectionsCornersRational[0][1] - 1 ][1][ endpointConnectionsCornersRational[1][1] ] = 0;
+	rationalSubtangleConnectionsEM[ endpointConnectionsCornersRational[0][2] - 1 ][1][ endpointConnectionsCornersRational[1][2] ] = 0;
+	rationalSubtangleConnectionsEM[ endpointConnectionsCornersRational[0][3] - 1 ][1][ endpointConnectionsCornersRational[1][3] ] = 0;
 	
 	//DEBUG
-	printf("\n COMPASS CONNECTIONS: ");
-	printArrayEM(numOfSubtangles,rationalSubtangleConnectionsCompass);
-	printCompassRationalSubtangleEM(numOfSubtangles,rationalSubtangleConnectionsCompass,rationalSubtangleParametersEM,rationalTwistVectorsEM);
+	//printf("\n DEBUG FLAG: line %d ", __LINE__);
+	//printPrettyRationalSubtangleEM(numOfSubtangles,rationalSubtangleConnectionsEM,rationalSubtangleParametersEM,rationalTwistVectorsEM);
+	
+	//Initialize arrays to store the algebraicGaussEM code, set to match the rationalGaussEM code by default.
+	for(int i=0; i<2*numOfSubtangles; i++){
+		gaussAlgebraicSubtangleEM[i]=gaussRationalSubtangleEM[i];
+	}
+	barsGaussAlgebraicSubtangleEM[0]=barsGaussRationalSubtangleEM[0];
+	barsGaussAlgebraicSubtangleEM[1]=barsGaussRationalSubtangleEM[1];
+	
+	//Initialize a local array to track the connections in terms of the compass corners, and fill these in.
+	//Note to be confused with the global rationalSubtangleConnectionsEMCompass, but it's too late to change all of the names.
+	int rationalSubtangleConnectionsCompass[numOfSubtangles][2][5];
+	convertConnectionsToCompass(numOfSubtangles,rationalSubtangleConnectionsEMlocal,rationalSubtangleConnectionsCompass,rationalSubtangleParametersEM,1);
+	
+	//Also populate the rationalSubtangleConnectionsEMCompass array to print it out later.
+	convertConnectionsToCompass(numOfSubtangles,rationalSubtangleConnectionsEMlocal,rationalSubtangleConnectionsEMCompass,rationalSubtangleParametersEM,1);
+	
+	//DEBUG
+	//printf("\n DEBUG FLAG: (line %d) COMPASS CONNECTIONS: ", __LINE__);
+	//printArrayEM(numOfSubtangles,rationalSubtangleConnectionsCompass);
+	//printCompassRationalSubtangleEM(numOfSubtangles,rationalSubtangleConnectionsCompass,rationalSubtangleParametersEM,rationalTwistVectorsEM);
 	
 	
 	//Initialize a boolean to track possible joines.
 	int moreJoinsPossible = true;
 	
 	//Set up an array to store information about possible joining; specifically, track the type of join, the index of the joined subtangles, and new NW corner of the second.
-	//The array will have the form [ join type , comp1 index , comp2 index , comp2 newNW ], where join type is =/-1 to denote horizontal/vertical joining relative to the first subtangle.
+	//The array will have the form [ join type , comp1 index , comp2 index , comp2 newNW ], where join type is +/-1 to denote horizontal/vertical joining relative to the first subtangle.
 	int joinInfo[4];
 	
 	//While joining is possible, iterate through subtangle until a join is found.
@@ -4802,7 +5439,6 @@ void buildAlgebraicSubtangleEMCode(int numOfSubtangles, int rationalSubtangleCon
 		//Note that we only search for forward joining, so we do not check the very last subtangle for joins.
 		//Also, multiple joins coulb be possible at the same stage, so break the loop after finding a join; these would be accounted for in later stages.
 		for(int i=0; i<algebraicSubtanglesRefined-1; i++){
-			//START AT i=0; that was just for testing something else
 			
 			if( (rationalSubtangleConnectionsCompass[i][0][2]==rationalSubtangleConnectionsCompass[i][0][3])
 				&& (rationalSubtangleConnectionsCompass[i][1][2]!=0) && (rationalSubtangleConnectionsCompass[i][1][3]!=0)
@@ -4862,17 +5498,17 @@ void buildAlgebraicSubtangleEMCode(int numOfSubtangles, int rationalSubtangleCon
 			//printf("\n DEBUG FLAG: Line %d (after rotations)\n Join Number %d, join type %d detected between components %d and %d:", __LINE__, KillLoopTest+1, joinInfo[0], joinInfo[1]+1, joinInfo[2]+1);
 			//printArrayEM(algebraicSubtanglesRefined,rationalSubtangleConnectionsCompass);
 			
-			
+				
 			//Now we may proceed with connections.
 			//The join type is accounted for in the joining function.
 			numOfStages++;
-			joinAlgebraicSubtangles(algebraicSubtanglesRefined,joinInfo[0],joinInfo[1],joinInfo[2],joinInfo[3]-1,rationalSubtangleConnectionsCompass,numOfStages,algebraicComponentsParameters);	
+			joinAlgebraicSubtangles(algebraicSubtanglesRefined,joinInfo[0],joinInfo[1],joinInfo[2],joinInfo[3]-1,rationalSubtangleConnectionsCompass,numOfStages,algebraicComponentsParameters,gaussAlgebraicSubtangleEM,barsGaussAlgebraicSubtangleEM);	
 			algebraicSubtanglesRefined--;
 				
 			//DEBUG
-			printf("\n DEBUG FLAG: Line %d \n Stage %d, after type %d joining of components %d and %d:", __LINE__, numOfStages, joinInfo[0], joinInfo[1]+1, joinInfo[2]+1);
-			printArrayEM(algebraicSubtanglesRefined,rationalSubtangleConnectionsCompass);
-				
+			//printf("\n DEBUG FLAG: Line %d \n Stage %d, after type %d joining of components %d and %d:", __LINE__, numOfStages, joinInfo[0], joinInfo[1]+1, joinInfo[2]+1);
+			//printArrayEM(algebraicSubtanglesRefined,rationalSubtangleConnectionsCompass);
+		
 		} else {
 			//No joining is possible.
 			moreJoinsPossible = false;
@@ -4880,27 +5516,242 @@ void buildAlgebraicSubtangleEMCode(int numOfSubtangles, int rationalSubtangleCon
 		
 	}
 	
-	
 	//DEBUG
 	//printAlgebraicComponentsParameters(numOfSubtangles,numOfStages,algebraicComponentsParameters,false);
 	
+	
+	//Populate the algebraicSubtangleConnectionsEMCompass arrays with the connection information.
+	for(int i=0; i<algebraicSubtanglesRefined; i++){
+		for(int j=0; j<5; j++){
+			algebraicSubtangleConnectionsEMCompass[i][0][j]=rationalSubtangleConnectionsCompass[i][0][j];
+			algebraicSubtangleConnectionsEMCompass[i][1][j]=rationalSubtangleConnectionsCompass[i][1][j];
+		}
+	}
+	//DEBUG
+	//printf("\n Algebraic Connections Arrays (Compass) (Debug, Line %d):", __LINE__);
+	//printArrayEM(algebraicSubtanglesRefined,algebraicSubtangleConnectionsEMCompass);
+	
+	
+	//DEBUG printf
 	//The original tangle is algebraic if all of the rational component subtangles can be joined into a single algebraic tangle.
 	if( algebraicSubtanglesRefined == 1 ){
-		printf("\n The current tangle is algebraic!");
+		//printf("\n The current tangle is algebraic!");
 		//This algebraic tangle is canonical if it has configuration -1, 1, 5, or 8, as tracked by the one remaining component.
+		/*
 		if( (algebraicComponentsParameters[numOfStages][0][7]==-1) || (algebraicComponentsParameters[numOfStages][0][7]==1) || (algebraicComponentsParameters[numOfStages][0][7]==5) || (algebraicComponentsParameters[numOfStages][0][7]==8) ){
 			printf("\n It is also in canonical form!\n");
 		} else {
 			printf("\n However, it isn't in canonical form.\n");
 		}
+		*/
+		if( tangleClassificationType == -1 ){
+			tangleClassificationType=4;
+		}
 	} else {
-		printf("\n The current tangle is NOT algebraic.\n");
+		//printf("\n The current tangle is NOT algebraic.\n");
+		tangleClassificationType=0;
 	}
 	
-	//printf("\n Reconstruction of algebraic components -- work in progress\n");
-	determineAlgebraicConstruction(numOfStages,algebraicSubtanglesRefined,algebraicComponentsParameters,0,0,0,0,0,true);
-
 	
+	
+	//DEBUG
+	//printf("\n Reconstruction of algebraic components (unrefined printf staments in function), Line %d \n", __LINE__);
+	determineAlgebraicConstruction(numOfStages,algebraicSubtanglesRefined,algebraicComponentsParameters,0,0,0,0,0,true,paddingArray,paddingArrayLength,0);
+		
+	
+	if( algebraicSubtanglesRefined==1 ){
+		
+		//DEBUG
+		/*
+		printf("\n Padding Array: Length = %d \n", paddingArrayLength[0]);
+		for(int i=0; i<3; i++){
+			printf("\t [");
+			for(int j=0; j<paddingArrayLength[0]; j++){
+				printf(" %d ", paddingArray[0][j][i]);
+			}
+			printf("]\n");
+		}
+		*/
+		
+		refinePaddingArray(paddingArray,paddingArrayLength,paddingArrayRefined,paddingArrayRefinedLength,tangleClassificationType,algebraicSubtanglesRefined,0);
+		
+		//DEBUG
+		/*
+		printf("\n Refined Padding Array: Length = %d \n", paddingArrayRefinedLength[0]);
+		for(int i=0; i<3; i++){
+			printf("\t [");
+			for(int j=0; j<paddingArrayRefinedLength[0]; j++){
+				printf(" %d ", paddingArrayRefined[0][j][i]);
+			}
+			printf("]\n");
+		}
+		printf("\n Construction from Refined Padding Array: (number of algebraic components = %d )\n", algebraicSubtanglesRefined);
+		printRefinedAlgebraicConstruction(paddingArrayRefined,paddingArrayRefinedLength,tangleClassificationType,0);
+		*/
+		
+	} else {
+		//DEBUG
+		//printf("\n Construction from Refined Padding Array: (number of algebraic components = %d )\n", algebraicSubtanglesRefined);
+		for(int i=0; i<algebraicSubtanglesRefined; i++){
+			refinePaddingArray(paddingArray,paddingArrayLength,paddingArrayRefined,paddingArrayRefinedLength,tangleClassificationType,algebraicSubtanglesRefined,i);
+			//printRefinedAlgebraicConstruction(paddingArrayRefined,paddingArrayRefinedLength,tangleClassificationType,i);
+		}
+	}	
+	
+	
+	
+	//After all joinable algebraic subtangles have been combined, we determine the S2 direction of each algebraic component.
+	//This is not tracked while constructing unless the component is rational. Instead, we determine this for the algebraic components using the algebraic Gauss code and connection information.
+	int gaussLabel;
+	int secondGaussIndex;
+	int secondGaussEncounter;
+	
+	int fringeCaseJoinedGaussLabel;
+	int fringeCaseFirstExitCorner;
+
+	//Iterate through each of the algebraic subtangle components.
+	for(int i=0; i<algebraicSubtanglesRefined; i++){
+		//Joined components have their S2 direction set to 0; we only need to update these, and only looking at the last stage of joining.
+		if( algebraicComponentsParameters[numOfStages][i][6] == 0 ){
+			
+			//The label of this component in the algebraic Gauss code is i+1.
+			gaussLabel=i+1;
+			
+			//Determine the index of the second time this component is encountered in the Gauss code.
+			secondGaussEncounter=0;
+			for(int j=0; j<barsGaussAlgebraicSubtangleEM[1]; j++){
+				if( gaussAlgebraicSubtangleEM[j] == gaussLabel ){
+					if( secondGaussEncounter == 0 ){
+						secondGaussEncounter++;
+					} else {
+						secondGaussIndex=j;
+						break;
+					}
+				}
+			}
+			
+			//There are two special cases to consider, and then a general case.
+			if( (secondGaussIndex+1) == barsGaussAlgebraicSubtangleEM[1] ){
+				//If a component is the last subtangle encountered (the last entry in the algebraic Gauss code), the S2 direction must be +1 automatically.
+				algebraicComponentsParameters[numOfStages][i][6]=1;
+				
+			} else if( gaussAlgebraicSubtangleEM[secondGaussIndex-1] == gaussAlgebraicSubtangleEM[secondGaussIndex+1] ){
+				//It is possible that algebraic components share more than one connection across an endpoint, so the general check is insufficient.
+				//After refining the algebraic subtangles, this can only happen across an endpoint. As usual, these endpoint cases are a nightmare to handle.
+				//Instead, we check if the first exit corner of the connected subtangle matches the secon enter corner of the current subtangle.
+				//This depends on the parities of both tangles.
+				
+				fringeCaseJoinedGaussLabel=gaussAlgebraicSubtangleEM[secondGaussIndex-1];
+				
+				if( algebraicComponentsParameters[numOfStages][fringeCaseJoinedGaussLabel-1][5] == 0 ){
+					//If connected subtangle has parity 0, its first exit corner is NE (2).
+					fringeCaseFirstExitCorner=2;
+				} else if( algebraicComponentsParameters[numOfStages][fringeCaseJoinedGaussLabel-1][5] == 1 ){
+					//If connected subtangle has parity 1, its first exit corner is SE (3).
+					fringeCaseFirstExitCorner=3;
+				} else if( algebraicComponentsParameters[numOfStages][fringeCaseJoinedGaussLabel-1][5] == 2 ){
+					//If connected subtangle has parity infinity, its first exit corner is SW (4).
+					fringeCaseFirstExitCorner=4;
+				}
+				
+				//We check if the first exit corner of the connected tangle matches the (non-reveresed) second enter corner of the current subtangle.
+				//If they match, the S2 direction is +1; otherwise, the direction is -1. This depends on parity.
+				if( algebraicComponentsParameters[numOfStages][i][5] == 0 ){
+					//If parity 0, the second enter corner is SE (3).
+					if( algebraicSubtangleConnectionsEMCompass[fringeCaseJoinedGaussLabel-1][1][fringeCaseFirstExitCorner] == 3 ){
+						algebraicComponentsParameters[numOfStages][i][6]=1;
+					} else {
+						algebraicComponentsParameters[numOfStages][i][6]=-1;
+					}		
+				} else if( algebraicComponentsParameters[numOfStages][i][5] == 1 ){
+					//If parity 1, the second enter corner is NE (2)
+					if( algebraicSubtangleConnectionsEMCompass[fringeCaseJoinedGaussLabel-1][1][fringeCaseFirstExitCorner] == 2 ){
+						algebraicComponentsParameters[numOfStages][i][6]=1;
+					} else {
+						algebraicComponentsParameters[numOfStages][i][6]=-1;
+					}
+				} else if( algebraicComponentsParameters[numOfStages][i][5] == 2 ){
+					//If parity infinity, the second enter corner is SE (3).
+					if( algebraicSubtangleConnectionsEMCompass[fringeCaseJoinedGaussLabel-1][1][fringeCaseFirstExitCorner] == 3 ){
+						algebraicComponentsParameters[numOfStages][i][6]=1;
+					} else {
+						algebraicComponentsParameters[numOfStages][i][6]=-1;
+					}
+				}
+
+				
+				
+			} else {
+				//The general case checks that the next tangle in the Gauss code matches what should be in the second exit corner of this tangle.
+				//Except for the endpoint case, this check is sufficient since no two refined algebraic components can share more than one connection.
+				//If this were not the case, they would be joinable into a larger algebraic component, but all joining is finished by this point.
+				//There are three possibilities based on the parity of the algebraic component in question.
+				//If the connected index matches, the S2 direction is +1; otherwise, the direction is -1.
+				if( (algebraicComponentsParameters[numOfStages][i][5]==0) || (algebraicComponentsParameters[numOfStages][i][5]==1) ){
+					//If parity 0 or 1, the second exit corner is SW (4).
+					if( algebraicSubtangleConnectionsEMCompass[i][0][4] == gaussAlgebraicSubtangleEM[secondGaussIndex+1] ){
+						algebraicComponentsParameters[numOfStages][i][6]=1;
+					} else {
+						algebraicComponentsParameters[numOfStages][i][6]=-1;
+					}
+				} else if( algebraicComponentsParameters[numOfStages][i][5] == 2 ){
+					//If parity infinity, the second exit corner is NE (2).
+					if( algebraicSubtangleConnectionsEMCompass[i][0][2] == gaussAlgebraicSubtangleEM[secondGaussIndex+1] ){
+						algebraicComponentsParameters[numOfStages][i][6]=1;
+					} else {
+						algebraicComponentsParameters[numOfStages][i][6]=-1;
+					}
+				}
+			}
+		}
+	}
+	
+	
+	//Set the number of subtangles to the number of algebraic components; set the num of algebraic stages.
+	numOfSubtangles=algebraicSubtanglesRefined;
+	numOfAlgebraicStages=numOfStages;	
+	
+}
+
+
+
+/*
+(NC, 3/22/19)
+This is a small function to determine whether or not an algebraic diagram is internally canonical.
+Internally canonical means that each algebraic subtangle has a canonical diagram when using its first entrace corner as NW.
+For algebraic tangles, this choice uniquely determines a canonical diagram (not counting rotations, which are considered different tangles).
+For non-algebraic tangles, it is possible a different choice of NW corner on the algebraic components could change what is considered canonical.
+However, at this time, there is no clear reason to choose a different choice of NW corner in this case.
+
+Inputs:
+
+Outputs:
+
+This function calls:
+	N/A
+This function is called by:
+	buildGeneralizedEMCode()
+
+*/
+
+bool isAlgebraicDiagramInternallyCanonical(int numOfSubtanglesInput, int numOfStagesInput, int algebraicSubtangleConnectionsEMCompass[][2][5]){
+	
+	int nonCanonConfigs=0;
+	
+	for(int i=0; i<numOfSubtanglesInput; i++){
+		//The internal configuration of an algebraic component is canonical if it has configuration type -1, 1, 5, or 8.
+		//If any component fails to have one of these configurations types, then the entire diagram is non-canonical.
+		if( (algebraicComponentsParameters[numOfStagesInput][0][7] != -1) && (algebraicComponentsParameters[numOfStagesInput][0][7] != 1) && (algebraicComponentsParameters[numOfStagesInput][0][7] != 5) && (algebraicComponentsParameters[numOfStagesInput][0][7] != 8) ){
+			nonCanonConfigs++;
+			break;
+		}
+	}
+	
+	if( nonCanonConfigs > 0 ){
+		return false;
+	} else {
+		return true;
+	}
 	
 }
 
@@ -4930,481 +5781,131 @@ This function calls:
 	buildIntegerSubtangleEMCode()
 	printArrayEM() (DEBUG)
 	printStandardEM() (DEBUG)
+	printPrettyIntegerSubtangleEM()
+	buildRationalSubtangleEMCode()
+	printRationalSubtangleParametersEM(DEBUG)
+	printPrettyRationalSubtangleEM()
+	buildAlgebraicSubtangleEMCode()
+	printCompassAlgebraicSubtangleEM()
+	isAlgebraicDiagramInternallCanonical()
 This function is called by:
 	main()
 
 */
 
-void buildGeneralizedEMCode(int *gaussInput, int *orientedSignGaussInput, int *barsInput, int numOfCrossingsInput, int *gaussCrossingSigns, int connectionsEM[][2][5], int &numOfSubtangles, int integerSubtangleConnectionsEM[][2][5], int integerSubtangleParametersEM[][7], int *gaussIntegerSubtangleEM, int *barsGaussIntegerSubtangleEM){
+void buildGeneralizedEMCode(int *gaussInput, int *orientedSignGaussInput, int *barsInput, int numOfCrossingsInput, int *gaussCrossingSigns, int connectionsEM[][2][5], int &numOfSubtangles, int integerSubtangleConnectionsEM[][2][5], int integerSubtangleParametersEM[][10], int *gaussIntegerSubtangleEM, int *barsGaussIntegerSubtangleEM){
 		
-	//Construct the usual Ewing Millett code of the tangle.
+	int numOfIntegerSubtangles;
+	int numOfRationalSubtangles;
+	int numOfAlgebraicSubtangles;
+	
+	//Construct the usual Ewing Millett (planar diagram) code of the tangle.
 	findGaussCrossingSigns(gaussInput,orientedSignGaussInput,numOfCrossingsInput,gaussCrossingSigns);
 	findEMConnections(gaussInput,gaussCrossingSigns,connectionsEM,numOfCrossingsInput);
 	
-	//DEBUG:
-	printf("\n Input Gauss Code: [");
+	
+	//Construct the various generalizations of the planar diagram code.
+	//Integer:
+	buildIntegerSubtanlgeEMCode(numOfCrossingsInput,gaussInput,connectionsEM,barsInput,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	numOfIntegerSubtangles=numOfSubtangles;
+	convertConnectionsToCompass(numOfIntegerSubtangles,integerSubtangleConnectionsEM,integerSubtangleConnectionsEMCompass,integerSubtangleParametersEM,0);
+	//Rational:
+	buildRationalSubtangleEMCode(numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM,rationalSubtangleConnectionsEM,rationalSubtangleParametersEM,rationalTwistVectorsEM,gaussRationalSubtangleEM,barsGaussRationalSubtangleEM,endpointConnectionsCornersRational,rationalComponentsCanonicalConfiguration,tangleClassificationType);
+	numOfRationalSubtangles=numOfSubtangles;	
+	//Algebraic:
+	buildAlgebraicSubtangleEMCode(numOfSubtangles,rationalSubtangleConnectionsEM,rationalSubtangleParametersEM,rationalTwistVectorsEM,gaussRationalSubtangleEM,barsGaussRationalSubtangleEM,endpointConnectionsCornersRational,rationalComponentsCanonicalConfiguration,rationalSubtangleConnectionsEMCompass,algebraicSubtangleConnectionsEMCompass,gaussAlgebraicSubtangleEM,barsGaussAlgebraicSubtangleEM,algebraicComponentsParameters,numOfAlgebraicStages);
+	numOfAlgebraicSubtangles=numOfSubtangles;
+	
+	//Determine whether the diagram is internally canonical based on its algebraic components.
+	canonicalAlgebraicDiagram=isAlgebraicDiagramInternallyCanonical(numOfAlgebraicSubtangles,numOfAlgebraicStages,algebraicSubtangleConnectionsEMCompass);
+	
+	
+	//Print the construction information for each of these generalized PD codes.
+	
+	//Input Gauss code:
+	printf("\n Input Gauss Code: \n\t[");
 	for(int i=0; i<2*numOfCrossingsInput; i++){
 		printf(" %d ", gaussInput[i]);
 	}
 	printf("]");
 	printf("\n barsInput: [ %d %d ]\n",barsInput[0],barsInput[1]);
-	printf("\n STANDARD EWING MILLETT CODE:");
-	printArrayEM(numOfCrossingsInput, connectionsEM);
+	
+	//Standard planar diagram code:
+	//printf("\n\n Standard Planar Diagram Code:");
+	//printArrayEM(numOfCrossingsInput, connectionsEM);
 	printStandardEM(numOfCrossingsInput, connectionsEM);
 	
-	
-	//DEBUG
-	printf("\n\n\n INTEGER SUBTANGLE GENERALIZED EM CODE:\n");
-	
-	//Construct the generalized version of the EM code for integer subtangles.
-	buildIntegerSubtanlgeEMCode(numOfCrossingsInput,gaussInput,connectionsEM,barsInput,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
-	
-	//DEBUG
-	//printf("\n INTEGER SUBTANGLE GENERALIZED EM CODE:");
-	printArrayEM(numOfSubtangles,integerSubtangleConnectionsEM);
-	printPrettyIntegerSubtangleEM(numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM);
+	//Integer subtangle planar diagram code:
+	//printf("\n\n Integer Subtangle Planar Diagram Code:\n");
+	//printArrayEM(numOfIntegerSubtangles,integerSubtangleConnectionsEM);
+	printPrettyIntegerSubtangleEM(numOfIntegerSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM);
+	printCompassIntegerSubtangleEM(numOfIntegerSubtangles,integerSubtangleConnectionsEMCompass,integerSubtangleParametersEM);
 	printf("\n Integer GaussEM Code: [");
-	for(int i=0; i<2*numOfSubtangles; i++){
+	for(int i=0; i<2*numOfIntegerSubtangles; i++){
 		printf(" %d ",gaussIntegerSubtangleEM[i]);
 	}
 	printf("]");
 	printf("\n barsGaussIntegerSubtangleEM: [ %d %d ] \n\n",barsGaussIntegerSubtangleEM[0],barsGaussIntegerSubtangleEM[1]);
 	
-	
-	//UPDATE THE INPUTS OF THIS FUNCTION TO INCLUDE THE RATIONAL VARIABLES, EVEN THOUGH RIGHT NOW THIS IS AVOIDED THANKS TO MAKING THESE VARIABLES GLOBAL, THAT COULD CHANGE IN THE FUTURE
-	//Construct the generalized version of the EM code for rational subtangles.
-	buildRationalSubtangleEMCode(numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM,rationalSubtangleConnectionsEM,rationalSubtangleParametersEM,rationalTwistVectorsEM,gaussRationalSubtangleEM,barsGaussRationalSubtangleEM,endpointConnectionsCornersRational,rationalComponentsCanonicalConfiguration);
-	
-	//DEBUG:
-	printf("\n\n\n RATIONAL SUBTANGLE GENERALIZED EM CODE:\n");
-	printRationalSubtangleParametersEM(numOfSubtangles,rationalSubtangleParametersEM);
-	printArrayEM(numOfSubtangles,rationalSubtangleConnectionsEM);
-	printPrettyRationalSubtangleEM(numOfSubtangles,rationalSubtangleConnectionsEM,rationalSubtangleParametersEM,rationalTwistVectorsEM);
+	//Rational subtangle planar diagram code:
+	//printf("\n\n Rational Subtangle Planar Diagram Code:\n");
+	//printRationalSubtangleParametersEM(numOfRationalSubtangles,rationalSubtangleParametersEM);
+	//printArrayEM(numOfRationalSubtangles,rationalSubtangleConnectionsEM);
+	printPrettyRationalSubtangleEM(numOfRationalSubtangles,rationalSubtangleConnectionsEM,rationalSubtangleParametersEM,rationalTwistVectorsEM);
+	printCompassRationalSubtangleEM(numOfRationalSubtangles,rationalSubtangleConnectionsEMCompass,rationalSubtangleParametersEM,rationalTwistVectorsEM);
 	printf("\n Rational GaussEM Code: [");
-	for(int i=0; i<2*numOfSubtangles; i++){
+	for(int i=0; i<2*numOfRationalSubtangles; i++){
 		printf(" %d ",gaussRationalSubtangleEM[i]);
 	}
 	printf("]");
-	printf("\n barsGaussRationalSubtangleEM: [ %d %d ] \n\n",barsGaussRationalSubtangleEM[0],barsGaussRationalSubtangleEM[1]);
+	printf("\n barsGaussRationalSubtangleEM: [ %d %d ] \n",barsGaussRationalSubtangleEM[0],barsGaussRationalSubtangleEM[1]);
+	
+	//Algebraic subtangle planar diagram code:
+	//printf("\n\n Algebraic Subtangle Planar Diagram Code: \n");
+	printCompassAlgebraicSubtangleEM(numOfAlgebraicSubtangles,algebraicSubtangleConnectionsEMCompass,gaussAlgebraicSubtangleEM,barsGaussAlgebraicSubtangleEM,paddingArrayRefined,paddingArrayRefinedLength,algebraicComponentsParameters,numOfAlgebraicStages);
+	printf("\n Algebraic GaussEM Code: [");
+	for(int i=0; i<2*numOfAlgebraicSubtangles; i++){
+		printf(" %d ",gaussAlgebraicSubtangleEM[i]);
+	}
+	printf("]");
+	printf("\n barsGaussAlgebraicSubtangleEM: [ %d %d ] \n\n",barsGaussAlgebraicSubtangleEM[0],barsGaussAlgebraicSubtangleEM[1]);
 	
 	
+	//If a calssification was determined, print it here.
+	printf("\n Tangle Classification: ");
+	if( tangleClassificationType == -1 ){
+		printf("undetermined\n");
+	} else if( tangleClassificationType == 0 ){
+		printf("non-algebraic\n");
+	} else if( tangleClassificationType == 1 ){
+		printf("rational\n");
+	} else if( tangleClassificationType == 2 ){
+		printf("Montesinos\n");
+	} else if( tangleClassificationType == 3 ){
+		printf("generalized Montesinos\n");
+	} else if( tangleClassificationType == 4 ){
+		printf("algebraic\n");
+	} else {
+		//Error case, should not happen.
+		printf("unclassified, but for some abnormal reason\n");
+	}
 	
-	//DEBUG
-	printf("\n\n\n ALGEBRAIC SUBTANGLE GENERALIZED EM CODE: \n");
+	//If the tangle is algebraic, give its construction.
+	if( (tangleClassificationType != 4 ) && ( tangleClassificationType != -1 ) ){
+		printf("\n Construction:\n");
+		printRefinedAlgebraicConstruction(paddingArrayRefined,paddingArrayRefinedLength,tangleClassificationType,0);
+		printf("\n");
+	}
 	
-	buildAlgebraicSubtangleEMCode(numOfSubtangles,rationalSubtangleConnectionsEM,rationalSubtangleParametersEM,rationalTwistVectorsEM,gaussRationalSubtangleEM,barsGaussRationalSubtangleEM,endpointConnectionsCornersRational,rationalComponentsCanonicalConfiguration);
+	//Specify whether its configuration is internally canonical.
+	if( canonicalAlgebraicDiagram ){
+		printf("\n The diagram is internally canonical.\n");
+	} else {
+		printf("\n The diagram is not interally canonical.\n");
+	}
 
 	
 }
-
-
-
-/*
-(NC, 1/8/19)
-This function is used to determine whether an input tangle is Montesinos or not based on its Rational Planar Diagram code.
-
-Inputs:
-
-Outputs:
-
-
-This function calls:
-	determineCompassCorners()
-This function is called by:
-	main()
-
-*/
-
-void detectIfMontesinos(int numOfSubtangles, int rationalSubtangleConnectionsEM[][2][5], int rationalSubtangleParametersEM[][10], int rationalTwistVectorsEM[][2*MAXNN+1], int *gaussRationalSubtangleEM, int *barsGaussRationalSubtangleEM, int endpointConnectionsCornersRational[2][4], int rationalComponentsCanonicalConfiguration[][4]){
-	
-	//Initialize an integer value to determine if the input tangle is Montesinos or not.
-	//Use 1 to indicate a horizontal Montesinos tangle, -1 to indicate a vertical Montesinos tangle, and 0 to denote non-Montesinos tangle
-	//Initialize a boolean in the special case where a local knot is detected, and another boolean to track when an indentified Montesinos tangle has a non-canonical form.
-	//If something strange happens where this tangle fails to be identified as Montesinos, flag this will a boolean as well.
-	int possibleMontesinos;
-	bool localKnotDetected = false;
-	bool nonCanonicalMontesinos = false;
-	bool somethingStrangeHappened = false;
-	
-	//Endpoint connections information.
-	//DEBUG
-	/*
-	printf("\n Endpoint Connections Information: \n Subtangle: \t [");
-	for(int i=0; i<4; i++){
-		printf(" %d ", endpointConnectionsCornersRational[0][i]);
-	}
-	printf("] \n Corner: \t [");
-	for(int i=0; i<4; i++){
-		printf(" %d ", endpointConnectionsCornersRational[1][i]);
-	}
-	printf("]\n");
-	*/
-	
-	//Initialize some local arrays to store the rationalSubtangleConnectionsEM data.
-	int rationalSubtangleConnectionsEMlocal[numOfSubtangles][2][5];
-	for(int i=0; i<numOfSubtangles; i++){
-		for(int j=0; j<5; j++){
-			rationalSubtangleConnectionsEMlocal[i][0][j] = rationalSubtangleConnectionsEM[i][0][j];
-			rationalSubtangleConnectionsEMlocal[i][1][j] = rationalSubtangleConnectionsEM[i][1][j];
-		}
-	}
-	//Replace each endpoint corner with a 0; this way, it will be possible to avoid chaining across corners.
-	rationalSubtangleConnectionsEMlocal[ endpointConnectionsCornersRational[0][0] - 1 ][1][ endpointConnectionsCornersRational[1][0] ] = 0;
-	rationalSubtangleConnectionsEMlocal[ endpointConnectionsCornersRational[0][1] - 1 ][1][ endpointConnectionsCornersRational[1][1] ] = 0;
-	rationalSubtangleConnectionsEMlocal[ endpointConnectionsCornersRational[0][2] - 1 ][1][ endpointConnectionsCornersRational[1][2] ] = 0;
-	rationalSubtangleConnectionsEMlocal[ endpointConnectionsCornersRational[0][3] - 1 ][1][ endpointConnectionsCornersRational[1][3] ] = 0;
-	
-	//DEBUG
-	//printArrayEM(numOfSubtangles,rationalSubtangleConnectionsEMlocal);
-	
-	
-	//Arrays to store the corner information of the rational components.
-	//Note that these will be determined relative to the natural description of a Montesinos tangle, which may differ from the internal description of the rational subtangles.
-	//Entry [i][0] denotes the Gauss index of the ith subtangle in the sum; the four middle entries denotes the corner (A,B,C,D) matches NW/NE/SE/SW.
-	//Entry [i][5] denotes the canonical configuration of the component rational tangle, with respect to the choice of NW endpoint.
-	//Entry [i][6] denotes the number of clockwise rotations on labels were needed for the NW corner of the subtangle to be regarded in the usual Montesinos position.
-	int subtangleCorners[numOfSubtangles][7];
-	
-	//By default, the first component in the possible Montesinos chain always has NW = A and has consistent orientation.
-	subtangleCorners[0][0]=0;
-	
-	//Initialize a storage array for modifying the compass labels of the corners.
-	int cornerStorageArray[7];
-	
-	//DEBUG
-	//printf("\n Component 1: Guass index %d \n", subtangleCorners[0][0]+1);
-	
-	//If there is only one subtangle, the tangle is rational by default, and we will not consider it Montesinos in this case.
-	if( numOfSubtangles < 2 ){
-		possibleMontesinos = 0;
-		
-		//We will still compute the compass directions to describe the single rational component.
-		//Use the determineCompassCorners() function to find the compass labels of the first rational subtangle.
-		//Store these in the cornerStorageArray[], and then use these to update the subtangleCorners[0][] array,
-		cornerStorageArray[0]=subtangleCorners[0][0];
-		determineCompassCorners(rationalSubtangleParametersEM[0][5],rationalSubtangleParametersEM[0][6],1,rationalSubtangleParametersEM[0][8],cornerStorageArray);
-		
-		subtangleCorners[0][1]=cornerStorageArray[1];
-		subtangleCorners[0][2]=cornerStorageArray[2];
-		subtangleCorners[0][3]=cornerStorageArray[3];
-		subtangleCorners[0][4]=cornerStorageArray[4];
-		
-		subtangleCorners[0][5]=cornerStorageArray[5];
-		subtangleCorners[0][6]=cornerStorageArray[6];
-			
-	} else {
-		
-		//Use the determineCompassCorners() function to find the compass labels of the first rational subtangle.
-		//Store these in the cornerStorageArray[], and then use these to update the subtangleCorners[0][] array,
-		cornerStorageArray[0]=subtangleCorners[0][0];
-		determineCompassCorners(rationalSubtangleParametersEM[0][5],rationalSubtangleParametersEM[0][6],1,rationalSubtangleParametersEM[0][8],cornerStorageArray);
-		
-		subtangleCorners[0][1]=cornerStorageArray[1];
-		subtangleCorners[0][2]=cornerStorageArray[2];
-		subtangleCorners[0][3]=cornerStorageArray[3];
-		subtangleCorners[0][4]=cornerStorageArray[4];
-		
-		subtangleCorners[0][5]=cornerStorageArray[5];
-		subtangleCorners[0][6]=cornerStorageArray[6];
-		
-		//DEBUG:
-		//printf("\n Subtangle Corners:\n Rational Component 1: NW = %d , NE = %d , SE = %d , SW = %d \n", subtangleCorners[0][1], subtangleCorners[0][2], subtangleCorners[0][3], subtangleCorners[0][4]);
-		
-		//The tangle can only be Montesinos if each rational component shares exactly two (non-endpoint) connections with the next component, excluding possible endpoint connections.
-		//If three connections are shared, and none of these cross over endpoints, then there is a local knot, in which case this is not Montesinos either.
-		if( (rationalSubtangleConnectionsEMlocal[0][0][subtangleCorners[0][3]]==rationalSubtangleConnectionsEMlocal[0][0][subtangleCorners[0][2]])
-			&& (rationalSubtangleConnectionsEMlocal[0][0][subtangleCorners[0][3]]==rationalSubtangleConnectionsEMlocal[0][0][subtangleCorners[0][4]]) ){
-			//if ( SE == NE ) && ( SE == SW ), and there is not joining across endpoints, then this tangle has a local knot, and it is not possible to be Montesinos.
-			if( (rationalSubtangleConnectionsEMlocal[0][1][subtangleCorners[0][2]]!=0)
-				&& (rationalSubtangleConnectionsEMlocal[0][1][subtangleCorners[0][3]]!=0)
-				&& (rationalSubtangleConnectionsEMlocal[0][1][subtangleCorners[0][4]]!=0) ){
-				localKnotDetected = true;
-				possibleMontesinos = 0;
-				//If there is not a local knot, then ( SE == NE ) && ( SE == SW ) can only happen if at least one of these three connections involves joining across endpoints.
-				//However, this could still be a Montesinos tangle as long as the endpoint joining only happens with the connection not involved with the Montesinos chain.
-			} else if( (rationalSubtangleConnectionsEMlocal[0][1][subtangleCorners[0][2]]!=0)
-						&& (rationalSubtangleConnectionsEMlocal[0][1][subtangleCorners[0][3]]!=0)
-						&& (rationalSubtangleConnectionsEMlocal[0][1][subtangleCorners[0][4]]==0) ){
-				//If both NE and SE connections are not across an endpoint, but the SW connection is, then horiozntal Montesinos is possible.
-				possibleMontesinos = 1;	
-			} else if( (rationalSubtangleConnectionsEMlocal[0][1][subtangleCorners[0][2]]==0)
-						&& (rationalSubtangleConnectionsEMlocal[0][1][subtangleCorners[0][3]]!=0)
-						&& (rationalSubtangleConnectionsEMlocal[0][1][subtangleCorners[0][4]]!=0)){
-				//If both the SE and SW connections are not across an endpoint, but the NE connection is, then vertical Montesinos is possible.
-				possibleMontesinos = -1;
-			} else {
-				//There should not be any other possibilities, but if something else does happen, this tangle probably isn't Montesinos, but for a strange resaon. Flag this just in case.
-				possibleMontesinos = 0;
-				somethingStrangeHappened = true;
-			}
-			//DEBUG:
-			//printf("\n Debug Flag: Line %d: possibleMontesinos = %d \n", __LINE__, possibleMontesinos);
-		} else if( rationalSubtangleConnectionsEMlocal[0][0][subtangleCorners[0][3]]==rationalSubtangleConnectionsEMlocal[0][0][subtangleCorners[0][2]] ){
-			//if SE == NE, then there is possible horizontal joining.
-			possibleMontesinos = 1;;
-		} else if( rationalSubtangleConnectionsEMlocal[0][0][subtangleCorners[0][3]]==rationalSubtangleConnectionsEMlocal[0][0][subtangleCorners[0][4]] ){
-			//if SE == SW, then there is possible vertical joining.
-			possibleMontesinos = -1;
-		} else {
-			//Otherwise, Montesinos is not possible.
-			possibleMontesinos = 0;
-		}
-	}
-	
-	//Intialize a variable to track the Guass code index of the next joined subtangle.
-	//Initialize another variable to track the possible kind of joining of the next subtangle.
-	int nextJoinedSubtangle;
-	int nextPossibleMontesinos;
-	
-	//Initialze a variable to track the the corner label for the NW position of the next joined subtangle.
-	//This is defined if possible Montesinos joining is detected.
-	int nextSubtangleCornerNW;
-	
-	for(int i=1; i<numOfSubtangles; i++){
-		if( possibleMontesinos != 0 ){
-			//The index of the next subtangle in the Montesinos chain is the subtangle connected to the SE corner of the preceding subtangle.
-			//Note that a -1 is needed to match the Gauss code index starting at 0.
-			nextJoinedSubtangle = rationalSubtangleConnectionsEMlocal[subtangleCorners[i-1][0]][0][subtangleCorners[i-1][3]]-1;
-			subtangleCorners[i][0] = nextJoinedSubtangle;
-			cornerStorageArray[0] = i;
-			
-			//DEBUG
-			//printf("\n Component %d: Gauss index %d \n", i+1, nextJoinedSubtangle+1);
-			
-			if( possibleMontesinos == 1 ){
-				//If possible horizontal Montesinos:
-				
-				//The NW corner of the next component in the Montesinos chain is the corner connected to the NE corner of the preceding component in the chain.
-				nextSubtangleCornerNW = rationalSubtangleConnectionsEMlocal[subtangleCorners[i-1][0]][1][subtangleCorners[i-1][2]];
-				
-				//Use this information and the determineCompassCorners() function to find the rest of the corners.
-				determineCompassCorners(rationalSubtangleParametersEM[subtangleCorners[i][0]][5],rationalSubtangleParametersEM[subtangleCorners[i][0]][6],nextSubtangleCornerNW,rationalSubtangleParametersEM[subtangleCorners[i][0]][8],cornerStorageArray);
-		
-				subtangleCorners[i][1]=cornerStorageArray[1];
-				subtangleCorners[i][2]=cornerStorageArray[2];
-				subtangleCorners[i][3]=cornerStorageArray[3];
-				subtangleCorners[i][4]=cornerStorageArray[4];
-				
-				subtangleCorners[i][5]=cornerStorageArray[5];
-				subtangleCorners[i][6]=cornerStorageArray[6];
-				
-			} else if( possibleMontesinos == -1 ){
-				//If possible vertical Montesinos:
-				
-				//The NW corner of the next component in the Montesinos chain is the corner connected to the SW corner of the preceding component in the chain.
-				nextSubtangleCornerNW = rationalSubtangleConnectionsEMlocal[subtangleCorners[i-1][0]][1][subtangleCorners[i-1][4]];
-				
-				//Use this information and the determineCompassCorners() function to find the rest of the corners.
-				determineCompassCorners(rationalSubtangleParametersEM[subtangleCorners[i][0]][5],rationalSubtangleParametersEM[subtangleCorners[i][0]][6],nextSubtangleCornerNW,rationalSubtangleParametersEM[subtangleCorners[i][0]][8],cornerStorageArray);
-		
-				subtangleCorners[i][1]=cornerStorageArray[1];
-				subtangleCorners[i][2]=cornerStorageArray[2];
-				subtangleCorners[i][3]=cornerStorageArray[3];
-				subtangleCorners[i][4]=cornerStorageArray[4];
-				
-				subtangleCorners[i][5]=cornerStorageArray[5];
-				subtangleCorners[i][6]=cornerStorageArray[6];
-				
-			}
-			//DEBUG:
-			//printf("\n Subtangle Corners:\n Rational Component %d: NW = %d , NE = %d , SE = %d , SW = %d \n", i+1, subtangleCorners[i][1], subtangleCorners[i][2], subtangleCorners[i][3], subtangleCorners[i][4]);
-			
-			
-			//Next, we check if there is possible chaining of rational subtangles into a Motnesinos tangle.
-			//We do not check for this if all subtangles have been accounted for already.
-			if( (i+1) < numOfSubtangles ){
-				//The tangle can only be Montesinos if each rational component shares exactly two connections with next component, excluding possible endpoint connections.
-				//If three connections are shared, there is a local knot, in which case this is not Montesinos either.
-				if( (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][0][subtangleCorners[i][3]]==rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][0][subtangleCorners[i][2]]) 
-					&& (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][0][subtangleCorners[i][3]]==rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][0][subtangleCorners[i][4]]) ){
-					//if ( SE == NE ) && ( SE == SW ), and we are not joining across an endpoint, then this is a local knot, and Montesinos is not possible.
-					if( (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][2]]!=0)
-						&& (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][3]]!=0)
-						&& (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][4]]!=0) ){
-						//If any of the three corners join across an endpoint, this entry is 0; check against this.
-						localKnotDetected = true;
-						nextPossibleMontesinos = 0;
-						//If there is not a local knot, then ( SE == NE ) && ( SE == SW ) can only happen if at least one of these three connections involves joining across endpoints.
-						//However, this could still be a Montesinos tangle as long as the endpoint joining only happens with the connection not involved with the Montesinos chain.
-					} else if( (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][2]]!=0)
-								&& (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][3]]!=0)
-								&& (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][4]]==0) ){
-						//If both NE and SE connections are not across an endpoint, but the SW connection is, then horiozntal Montesinos is possible.
-						nextPossibleMontesinos = 1;
-					} else if( (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][2]]==0)
-								&& (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][3]]!=0)
-								&& (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][4]]!=0) ){
-						//If both the SE and SW connections are not across an endpoint, but the NE connection is, then vertical Montesinos is possible.
-						possibleMontesinos = -1;
-					} else {
-						//There should not be any other possibilities, but if something else does happen, this tangle probably isn't Montesinos, but for a strange resaon. Flag this just in case.
-						nextPossibleMontesinos = 0;
-						somethingStrangeHappened = true;
-					}
-				} else if( rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][0][subtangleCorners[i][3]]==rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][0][subtangleCorners[i][2]] ){
-					//if SE == NE, and endpoint joining does not occur, then there is possible horizontal joining.
-					//Check to make sure joining does not happen across an endpoint.
-					if( (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][3]]!=0) && (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][2]]!=0) ){
-						nextPossibleMontesinos = 1;
-					} else {
-						nextPossibleMontesinos = 0;
-						//printf("\n UN-check");
-					}
-					//printf("\n CHECK \n");
-				} else if( rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][0][subtangleCorners[i][3]]==rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][0][subtangleCorners[i][4]] ){
-					//if SE == SW, and endpoint joining does not occur, then there is possible vertical joining.
-					if( (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][3]]!=0) && (rationalSubtangleConnectionsEMlocal[subtangleCorners[i][0]][1][subtangleCorners[i][4]]!=0) ){
-						nextPossibleMontesinos = -1;
-					} else {
-						nextPossibleMontesinos = 0;
-					}
-				} else {
-					//Otherwise, Montesinos is not possible.
-					nextPossibleMontesinos = 0;
-				}
-				
-				//If the nextPossibleMontesinos is 0, then the current tangle is not Montesisnos and we stop searching.
-				//If the nextPossibleMontesinos is nonzero but does not agree with  possibleMontesinos, then flag this as non-Montesinos, but this would be strange since both types should not be detected at the same time.
-				//If the nextPossibleMontesinos agrees with possibleMontesinos (1 or -1 for horizontal/vertical), then we leave possibleMontesinos as is and keep checking for joins to the Montesinos chain.
-				if( nextPossibleMontesinos == 0 ){
-					possibleMontesinos = 0;
-				} else if( (nextPossibleMontesinos!=0) && (nextPossibleMontesinos!=possibleMontesinos) ){
-					possibleMontesinos = 0;
-					somethingStrangeHappened = true;
-				}
-					
-			}
-			
-		}
-		
-	}
-	
-	//At this point, it has been determined whether or not the input tangle is Montesinos.
-	//Next, if it is Montesinos, we check whether the tangle is in canononical form or not based on the configurations of the components; this information is stored in subtangleCorners[i][5].
-	//To be canonical, each component must have a configuration of either -1, 1, 5, or 8 when viewed with its orientation matching the Montesinos chain.
-	//Recall that these are the labels for the configurations in which the current NW corner matches a rational tangle in canonical form.
-	for(int i=0; i<numOfSubtangles; i++){
-		if( (subtangleCorners[i][5] != -1) && (subtangleCorners[i][5] != 1) && (subtangleCorners[i][5] != 5) && (subtangleCorners[i][5] != 8) ){
-			nonCanonicalMontesinos = true;
-		}
-	}
-	
-	
-	//Ininitialize an array to track the fraction p/q for each component of the possible Montesinos tangle.
-	//Initialize an array to track the twist sign of each component.
-	//Both of these 
-	//The convention for a canonical montesinos tangle is that each rational component in the sum has a fraction satisfying 0 < p/q < 1.
-	//Also initialize a boolean to track if this condition is satisfied; the tangle cannot be in canonical form if this holds.
-	int componentFraction[numOfSubtangles][2];
-	bool noncanonFraction = false;
-	
-	//If the tangle is in fact Montesinos, determine the fractions p/q of each component.
-	if( possibleMontesinos !=0 ){
-		for(int i=0; i<numOfSubtangles; i++){
-			//The corresponding fraction will depend on whether or not the internal orientation of the component matches the orientation of the Montesinos chain.
-			if( (subtangleCorners[i][6]%2) == 0 ){
-				//If an even number of 90 degree clockwise rotations where needed to identify the NW corner of a rational component in the Montesinos construction, use fraction p/q.
-				componentFraction[i][0] = rationalSubtangleParametersEM[subtangleCorners[i][0]][3];
-				componentFraction[i][1] = rationalSubtangleParametersEM[subtangleCorners[i][0]][4];
-			} else {
-				//If an odd number of 90 degree clockwise rotations where needed to identify the NW corner of a rational component in the Montesinos construction, use fraction -q/p.
-				//Note that we need to check against signs to remain consistent with the convetion that only the denominator is negative.
-				if( rationalSubtangleParametersEM[subtangleCorners[i][0]][4] > 0 ){
-					componentFraction[i][0] = rationalSubtangleParametersEM[subtangleCorners[i][0]][4];
-					componentFraction[i][1] = -1*rationalSubtangleParametersEM[subtangleCorners[i][0]][3];
-				} else {
-					componentFraction[i][0] = -1*rationalSubtangleParametersEM[subtangleCorners[i][0]][4];
-					componentFraction[i][1] = rationalSubtangleParametersEM[subtangleCorners[i][0]][3];
-				}
-			}
-			
-			//If the fraction of any component does not satisfy 1 < p/q < 0, then this fraction is non-canonical, and we set the boolean noncanonFraction to true.
-			//In this case, we check whether q < 0 or p > q.
-			if( (componentFraction[i][1]<0) || (componentFraction[i][0]>componentFraction[i][1]) ){
-				noncanonFraction = true;
-				//DEBUG
-				//printf("\n BOOP %d", i);
-			}
-		}
-	}
-	
-	//Special case for rational tangles, which only happens if there is a single component.
-	if( numOfSubtangles == 1 ){
-		componentFraction[0][0] = rationalSubtangleParametersEM[0][3];
-		componentFraction[0][1] = rationalSubtangleParametersEM[0][4];
-	}
-	
-	//If it is Montesinos, we would also like to describe the construction.
-	if( possibleMontesinos == 1 ){
-		printf("\n\n The current tangle is horizontal Montesinos,");
-		if( nonCanonicalMontesinos || noncanonFraction ){
-			printf(" but it is NOT canonical.\n");
-			if( nonCanonicalMontesinos == true ){
-				printf(" At least one component is not in a canonical configuration in the sum.\n");
-			}
-			if( noncanonFraction == true ){
-				printf(" At least one component has a fraction which does not satisfy 0 < p/q < 1.\n");
-			}
-		} else {
-			printf(" and it's also in CANONICAL form!\n");
-		}
-		printf("\n construction: \t");
-		for(int i=0; i<numOfSubtangles; i++){
-			printf("(%d/%d)", componentFraction[i][0], componentFraction[i][1]);
-			if( (i+1) < numOfSubtangles ){
-				printf("+");
-			} else {
-				printf("\n");
-			}
-		}
-	} else if( possibleMontesinos == -1 ){
-		printf("\n\n Current tangle is vertical Montesinos,");
-		if( nonCanonicalMontesinos || noncanonFraction ){
-			printf(" but it is NOT canonical.\n");
-			if( nonCanonicalMontesinos == true ){
-				printf(" At least one component is not in a canonical configuration in the sum.\n");
-			}
-			if( noncanonFraction == true ){
-				printf(" At least one component has a fraction which does not satisfy 0 < p/q < 1.\n");
-			}
-		} else {
-			printf(" and it's also in CANONICAL form!\n");
-		}
-		printf("\n construction: \t");
-		for(int i=0; i<numOfSubtangles; i++){
-			printf("(%d/%d)", componentFraction[i][0], componentFraction[i][1]);
-			if( (i+1) < numOfSubtangles ){
-				printf("*");
-			} else {
-				printf("\n");
-			}
-		}
-	} else {
-		if( numOfSubtangles == 1 ){
-			printf("\n\n The current tangle is rational,");
-			if( nonCanonicalMontesinos == true ){
-				printf("\n but it isn't in canonical form.\n");
-				printf("\n Equivalent to:\t (%d/%d)\n", componentFraction[0][0], componentFraction[0][1]);
-			} else {
-				printf("\n and it is in canononical form.\n");
-				printf("\n Fraction:\t (%d/%d)\n", componentFraction[0][0], componentFraction[0][1]);
-			}
-		} else {
-			printf("\n\n Current tangle is NOT Montesinos.\n");
-			if( localKnotDetected ){
-				printf(" A local knot was detected in this tangle.\n");
-			}
-			if( somethingStrangeHappened ){
-				printf(" Something strange happened, look into why this tangle wasn't Montesinos.\n");
-			}
-		}
-	
-	}
-	
-}
-
-
-
 
 
 
@@ -5626,10 +6127,24 @@ int main(){
 	//buildGeneralizedEMCode(gauss23,orientedSignGauss23,bars23,numOfCrossings23,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
 	
 	
+	//15 crossing non-algebraic tangle (canonical components)
+	int numOfCrossings24 = 15;
+	int gauss24[2*numOfCrossings24] = {-1,2,-3,4,-5,6,-7,8,-9,10,-11,12,-13,3,-2,1,-4,5,-14,15,-6,13,-12,9,-8,7,-10,11,-15,14};
+	int bars24[2]={11,30};
+	int orientedSignGauss24[2*numOfCrossings24] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+	
+	//buildGeneralizedEMCode(gauss24,orientedSignGauss24,bars24,numOfCrossings24,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
 	
 	
+	//15 crossing non-algebraic tangle (some non-rational components)
+	int numOfCrossings25 = 15;
+	int gauss25[2*numOfCrossings25] = {-1,2,-3,4,-5,1,-2,3,-6,7,-8,9,-10,11,-12,6,-7,13,-14,15,-11,12,-13,14,-15,8,-4,5,-9,10};
+	int bars25[2]={15,30};
+	int orientedSignGauss25[2*numOfCrossings25] = {-1,-1,-1,-1,-1,-1,-1,-1,1,1,1,1,1,-1,-1,1,1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,1,1};
 	
-	//detectIfMontesinos(numOfSubtangles,rationalSubtangleConnectionsEM,rationalSubtangleParametersEM,rationalTwistVectorsEM,gaussRationalSubtangleEM,barsGaussRationalSubtangleEM,endpointConnectionsCornersRational,rationalComponentsCanonicalConfiguration);
+	//buildGeneralizedEMCode(gauss25,orientedSignGauss25,bars25,numOfCrossings25,gaussCrossingSigns,connectionsEM,numOfSubtangles,integerSubtangleConnectionsEM,integerSubtangleParametersEM,gaussIntegerSubtangleEM,barsGaussIntegerSubtangleEM);
+	
+	
 	
 }
 
